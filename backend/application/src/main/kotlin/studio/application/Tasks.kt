@@ -11,7 +11,8 @@ import studio.engine.TextPrompt
     val dependencies: List<String> = emptyList(), val priority: Int = 0)
 @Serializable data class Snapshot(val workflowId: String?, val workflowVersion: String, val templateHash: String,
     val parameters: JsonObject, val models: List<String>, val engineVersion: String, val assetVersionIds: List<String> = emptyList(),
-    val seeds: Map<String, Long> = emptyMap(), val prompt: TextPrompt? = null)
+    val seeds: Map<String, Long> = emptyMap(), val prompt: TextPrompt? = null, val parentAssetVersionId: String? = null, val shotRevisionId: String? = null,
+    val referenceDefaults: Map<String,String?> = emptyMap())
 @Serializable data class Problem(val code: String, val message: String)
 @Serializable data class Attempt(val id: String, val attemptNo: Int, val engineId: String, val externalId: String?,
     val status: TaskStatus, val error: Problem?, val startedAt: Long?, val finishedAt: Long?, val node: String?, val nodeProgress: Double?,
@@ -19,12 +20,17 @@ import studio.engine.TextPrompt
 @Serializable data class Task(val id: String, val projectId: String, val assetId: String?, val status: TaskStatus,
     val snapshot: Snapshot, val priority: Int, val createdAt: Long, val attempts: List<Attempt>, val dependencies: List<String>,
     val results: List<Media>, val cancelRequested: Boolean, val kind: String, val targetId: String, val writingResultId: String?)
+val Task.isImageJob get() = kind == "IMAGE" || kind == "KEYFRAME"
 @Serializable data class Accepted(val taskId: String, val status: TaskStatus)
 @Serializable data class TaskUpdate(val taskId: String, val projectId: String, val attemptId: String,
     val status: TaskStatus, val stage: String, val node: String? = null, val nodeProgress: Double? = null, val overallProgress: Double? = null)
 data class Event(val seq: Long, val payload: String)
 
 interface Tasks {
+    fun priorBoard(kind: BoardJob, target: String, key: String, request: BoardRequest): Accepted?
+    fun enqueueBoard(kind: BoardJob, target: String, key: String, request: BoardRequest, engineId: String, model: String,
+        engineVersion: String?, enableThinking: Boolean?): Accepted
+    fun enqueueKeyframe(shot: String, key: String, request: KeyframeRequest, engineId: String, mode: String): Accepted
     fun priorWriting(kind: WritingKind, target: String, key: String, request: WritingRequest): Accepted?
     fun enqueueWriting(kind: WritingKind, target: String, key: String, request: WritingRequest, engineId: String, model: String,
         engineVersion: String? = null, enableThinking: Boolean? = null): Accepted

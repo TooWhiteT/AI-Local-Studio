@@ -199,7 +199,7 @@ watch(
       try {
         const task = value(await api.GET('/tasks/{id}', { params: pathId(taskId) }))
         if (projectId.value !== p || route.query.task !== taskId) return
-        if (task.projectId === p && task.kind !== 'IMAGE') {
+        if (task.projectId === p && (task.kind === 'OUTLINE' || task.kind === 'EPISODE_PLAN' || task.kind === 'SCRIPT')) {
           kind.value = task.kind
           episode.value = task.kind === 'SCRIPT' ? task.targetId : ''
           await refresh(true)

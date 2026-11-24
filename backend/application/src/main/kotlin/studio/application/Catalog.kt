@@ -11,9 +11,10 @@ import studio.core.*
 @Serializable data class AssetInput(val name: String, val type: String = "CHARACTER")
 @Serializable data class Media(val id: String, val relativePath: String, val sha256: String, val mime: String,
     val sizeBytes: Long, val width: Int, val height: Int)
-@Serializable data class Version(val id: String, val revision: Int, val approvalStatus: String, val file: Media)
+@Serializable data class Version(val id: String, val revision: Int, val approvalStatus: String, val file: Media, val parentVersionId: String? = null)
 @Serializable data class Asset(val id: String, val projectId: String, val name: String, val type: String,
-    val versions: List<Version>, val createdAt: Long)
+    val versions: List<Version>, val createdAt: Long, val description: String = "",
+    val activeVersionId: String? = null, val reviewRevision: Int = 0)
 
 interface Catalog {
     fun create(input: ProjectInput): Project
@@ -23,6 +24,7 @@ interface Catalog {
     fun assets(projectId: String, window: Window): Page<Asset>
     fun createAsset(projectId: String, input: AssetInput): Asset
     fun asset(id: String): Asset
+    fun review(asset: String, version: String, expectedRevision: Int, approve: Boolean): Asset
     fun media(id: String): Media
 }
 fun ProjectInput.validate() {

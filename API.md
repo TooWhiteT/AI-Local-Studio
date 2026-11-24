@@ -77,3 +77,24 @@ POST /prompt（API图、client_id）；WS /ws?clientId=...；GET /history/{promp
 三个生成接口均使用 Idempotency-Key 并返回 202。首次创建 expectedRevision 填 0，编辑或再生成时填当前修订号。分集规划需要已审核的 storyRevisionId，剧本另需当前 planId。提交内容和角色、地点、出场对白引用由后端校验。并发修改返回 409。场次、对白、人物及地点的可选数量约束保存在任务快照里。所有类型共用 /tasks 与 /events。文字任务的 assetId、workflowId 为空，kind、targetId 和 writingResultId 标识产物。[完整字段与响应](openapi.json)
 
 文字任务详情的 `snapshot.prompt.enableThinking` 记录工作台为支持此开关的模板选定的值。未设置时沿用模型模板默认行为。申请生成一场的剧本时，输出 schema 将该场 `durationMs` 固定为请求所引用规划中的该集时长。
+
+## M2 资产与分镜接口
+
+| 方法与路径 | 用途 |
+| --- | --- |
+| POST /projects/{id}/assets/extract | 从已审核剧本提取资产，expectedRevision 为剧本修订号 |
+| GET /projects/{id}/assets/extractions/{resultId} | 按场次查看提取结果 |
+| POST /assets/{id}/versions/{vid}/approve 或 /reject | 审核并选用、或弃用待审核候选，传入资产的 reviewRevision 作为 expectedRevision |
+| POST /episodes/{id}/shots/plan | 按场拆镜，提交已审核剧本、参考版本 ID 和每场镜头数 |
+| GET /episodes/{id}/shots | 当前分镜，可通过 revisionId 查询历史 |
+| GET /episodes/{id}/shots/history | 分页查看分镜修订 |
+| GET 或 PATCH /shots/{id} | 定位镜头所在分镜，或修订景别、机位、动作、毫秒时长及绑定版本。GET 支持 shotRevisionId |
+| PUT /episodes/{id}/shots/order | 提交完整镜头 ID 顺序 |
+| POST /episodes/{id}/shots/{boardId}/approve | 审核当前有效的分镜版本 |
+| POST /shots/{id}/regenerate | 保留时长和其他镜头，重新生成指定镜头 |
+| POST /shots/{id}/keyframes/generate | 由明确的 shotRevisionId 和工作流版本创建预览图 |
+| PUT /scenes/{id}/characters/{key}/state | 按场次和大纲角色键保存入场与出场状态 |
+
+拆镜、编辑、重排、单镜重做和分镜审核均传 expectedRevision，首次拆镜填 0。生成接口返回 202 并接受 Idempotency-Key。文字任务的 writingResultId 对应提取记录或分镜版本。预览图任务返回媒体，snapshot 固定 shotRevisionId 和 assetVersionIds。历史图片沿用 /media/{id} 读取。[完整契约](openapi.json)
+
+镜头参考里的 isCurrent 描述该图是否为资产的当前默认图，needsReview 描述其绑定之后的默认图变化。PATCH 省略 assetVersionIds 会原样保留这些绑定，显式提交版本列表表示选用该组合，可包括已审核的历史候选。

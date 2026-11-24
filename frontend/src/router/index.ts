@@ -10,6 +10,7 @@ export const router = createRouter({
       component: () => import('../features/Assets.vue'),
       meta: { title: '资产生成' },
     },
+    { path: '/projects/:id/storyboard', component: () => import('../features/storyboard/Storyboard.vue'), meta: { title: '分镜工作台' } },
     { path: '/tasks', component: () => import('../features/Tasks.vue'), meta: { title: '任务中心' } },
     { path: '/workflows', component: () => import('../features/Workflows.vue'), meta: { title: '工作流' } },
     { path: '/:pathMatch(.*)*', redirect: '/projects' },

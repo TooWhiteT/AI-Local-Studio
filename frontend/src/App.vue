@@ -12,6 +12,7 @@ import {
 import { useStudio } from './stores/studio'
 import TaskTray from './components/TaskTray.vue'
 import './style.css'
+import './features/storyboard/production.css'
 const store = useStudio(),
   route = useRoute(),
   router = useRouter()
@@ -50,6 +51,8 @@ const nav = computed(() => [
     active: route.path.endsWith('/assets'),
     disabled: !currentAssetProject.value,
   },
+  { to: currentAssetProject.value ? '/projects/' + currentAssetProject.value.id + '/storyboard' : '/projects',
+    title: '分镜工作台', icon: 'flow', active: route.path.endsWith('/storyboard'), disabled: !currentAssetProject.value },
   { to: '/tasks', title: '任务中心', icon: 'queue', active: route.path === '/tasks' },
   { to: '/workflows', title: '工作流', icon: 'flow', active: route.path === '/workflows' },
 ])

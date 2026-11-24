@@ -80,5 +80,11 @@ fun Route.catalogRoutes(catalog: Catalog) {
     }
     get("/projects/{id}/assets") { call.respond(catalog.assets(call.id(), call.window())) }
     post("/projects/{id}/assets") { call.respond(HttpStatusCode.Created, catalog.createAsset(call.id(), call.receive())) }
+    for (decision in listOf("approve", "reject")) {
+        post("/assets/{id}/versions/{vid}/$decision") {
+            call.respond(catalog.review(call.id(), validId(call.parameters["vid"].orEmpty()),
+                call.receive<WritingApproval>().expectedRevision, decision == "approve"))
+        }
+    }
     get("/assets/{id}") { call.respond(catalog.asset(call.id())) }
 }

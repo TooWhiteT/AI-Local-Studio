@@ -51,6 +51,25 @@ class MockTextEngine : TextEngine {
                     } } })
                 }
             }
+            "ASSET_EXTRACT" -> buildJsonObject {
+                put("scenes",buildJsonArray { for (scene in call.input.getValue("script").jsonObject.getValue("scenes").jsonArray) addJsonObject {
+                    put("items",buildJsonArray { if ("信" in scene.jsonObject.getValue("action").jsonPrimitive.content) addJsonObject {
+                        put("type","PROP"); put("name","信件"); put("description","场次中出现的信件 · Mock")
+                    } })
+                } })
+            }
+            "SHOT_PLAN" -> buildJsonObject {
+                put("scenes",buildJsonArray { for (scene in call.input.getValue("script").jsonObject.getValue("scenes").jsonArray) addJsonObject {
+                    put("shots",buildJsonArray { repeat(count("shotsPerScene",2)) { i -> addJsonObject {
+                        put("framing",if(i==0) "全景" else "近景"); put("camera",if(i==0) "固定机位" else "缓推")
+                        put("action",scene.jsonObject.getValue("action").jsonPrimitive.content.take(720)+" · Mock ${i+1}")
+                    } } })
+                } })
+            }
+            "SHOT_REGENERATE" -> buildJsonObject {
+                put("framing","特写"); put("camera","平视缓推")
+                put("action",(idea.ifBlank { call.input.getValue("shot").jsonObject.getValue("action").jsonPrimitive.content }).take(700)+" · Mock 重做")
+            }
             else -> error("未知文字任务")
         }
         return TextRun.Completed(result.toString(),null)

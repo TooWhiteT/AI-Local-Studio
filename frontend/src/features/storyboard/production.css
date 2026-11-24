@@ -1,0 +1,226 @@
+.asset-library,
+.plan-controls {
+  margin-bottom: 18px;
+}
+.inset {
+  padding: 15px 20px;
+}
+.production-toolbar,
+.version-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.production-toolbar {
+  padding: 12px 20px;
+}
+.production-toolbar small,
+.shot-list small,
+.asset-strip small,
+.reference-grid small {
+  color: var(--muted);
+}
+.compact-select {
+  width: min(160px, 45%);
+}
+.episode-select {
+  width: min(300px, 100%);
+}
+.history-select {
+  width: min(230px, 100%);
+}
+.asset-strip,
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(147px, 1fr));
+  gap: 8px;
+  padding: 0 20px 15px;
+}
+.asset-strip button,
+.shot-list button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  border-radius: 7px;
+  cursor: pointer;
+  min-width: 0;
+}
+.asset-strip button[aria-pressed='true'],
+.shot-list button[aria-pressed='true'] {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+.asset-strip img,
+.asset-type {
+  width: 42px;
+  height: 42px;
+  border-radius: 5px;
+  flex: none;
+  object-fit: cover;
+}
+.asset-type {
+  display: grid;
+  place-items: center;
+  background: var(--canvas);
+  font-size: 12px;
+  color: var(--muted);
+}
+.asset-strip strong,
+.asset-strip small,
+.reference-grid small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.asset-strip small,
+.shot-list small {
+  font-size: 12px;
+}
+.version-tile .image-card {
+  width: 100%;
+}
+.version-actions {
+  margin-top: 8px;
+}
+.version-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 0 16px;
+}
+.version-compare > div {
+  min-width: 0;
+}
+.version-compare img,
+.frame-preview {
+  width: 100%;
+  object-fit: contain;
+  max-height: 48vh;
+  background: var(--canvas);
+  border-radius: 7px;
+  margin: 8px 0;
+}
+.plan-fields {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.6fr) minmax(110px, 0.7fr) minmax(160px, 1.2fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+.board-grid {
+  display: grid;
+  grid-template-columns: minmax(155px, 0.8fr) minmax(230px, 1.4fr) minmax(225px, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+.board-grid > *,
+.plan-fields > * {
+  min-width: 0;
+}
+.board-grid .panel-title {
+  padding: 12px 15px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.board-grid h2,
+.plan-controls h2,
+.asset-library h2 {
+  font-size: 17px;
+}
+.board-grid p,
+.asset-library p {
+  margin: 0;
+}
+.board-toolbar {
+  align-items: end;
+  padding: 0 0 16px;
+}
+.shot-list {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+}
+.shot-list button {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 11px;
+}
+.shot-list span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+}
+.empty-frame {
+  background: var(--canvas);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  aspect-ratio: 16/9;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+.reference-grid {
+  padding: 0;
+  grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+}
+.reference-grid figure {
+  margin: 0;
+}
+.reference-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: var(--canvas);
+  border-radius: 6px;
+}
+.continuity {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.continuity summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.continuity .field-pair,
+.continuity > .field {
+  margin: 8px 0;
+}
+@media (max-width: 1150px) {
+  .plan-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .board-grid {
+    grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr);
+  }
+  .shot-settings {
+    grid-column: 1/-1;
+  }
+}
+@media (max-width: 720px) {
+  .board-grid,
+  .plan-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .production-toolbar {
+    align-items: stretch;
+  }
+  .board-grid .inset {
+    padding: 12px;
+  }
+  .asset-strip {
+    grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  }
+  .board-toolbar .history-select {
+    width: 100%;
+  }
+  .page-head .episode-select {
+    max-width: 100%;
+  }
+}

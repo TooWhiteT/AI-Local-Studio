@@ -47,23 +47,36 @@ class SqlCatalog(private val db: StudioDb) : Catalog {
     override fun createAsset(projectId: String, input: AssetInput) = db.tx {
         requireActive(projectId)
         checkInput(input.name.isNotBlank() && input.name.length <= 120, "资产名须为 1 至 120 个字符")
-        checkInput(input.type in setOf("CHARACTER", "SCENE", "PROP", "COSTUME"), "图片资产类型无效")
+        checkInput(input.type in setOf("CHARACTER", "SCENE", "PROP", "COSTUME", "VOICE"), "资产类型无效")
         val id = uid()
         update("INSERT INTO assets(id,project_id,type,name,created_at) VALUES(?,?,?,?,?)",
             id, projectId, input.type, input.name.trim(), System.currentTimeMillis())
         getAsset(id)
     }
     override fun asset(id: String) = db.tx { getAsset(id) }
+    override fun review(asset: String, version: String, expectedRevision: Int, approve: Boolean) = db.tx {
+        val current = getAsset(asset)
+        requireActive(current.projectId)
+        val candidate = current.versions.find { it.id == version } ?: missing("该资产没有这个版本")
+        if (current.reviewRevision != expectedRevision) conflict("资产审核已更新，请刷新")
+        if (!approve && candidate.approvalStatus != "REVIEW_REQUIRED") conflict("仅待审核候选可以弃用")
+        if (approve && candidate.approvalStatus == "ARCHIVED") conflict("该候选已弃用")
+        update("UPDATE asset_versions SET approval_status=? WHERE id=?", if (approve) "APPROVED" else "ARCHIVED", version)
+        update("UPDATE assets SET active_version_id=?,review_revision=review_revision+1 WHERE id=?",
+            if (approve) version else current.activeVersionId, asset)
+        getAsset(asset)
+    }
     override fun media(id: String) = db.tx {
         rows("SELECT id AS file_id,* FROM media_files WHERE id=?", id) { toMedia() }.firstOrNull() ?: missing("媒体不存在")
     }
     private fun Connection.getAsset(id: String): Asset {
-        val versions = rows("""SELECT v.id AS version_id,v.revision,v.approval_status,v.file_id,f.*
+        val versions = rows("""SELECT v.id AS version_id,v.revision,v.approval_status,v.parent_version_id,v.file_id,f.*
             FROM asset_versions v JOIN media_files f ON f.id=v.file_id WHERE v.asset_id=? ORDER BY v.revision DESC""", id) {
-            Version(getString("version_id"), getInt("revision"), getString("approval_status"), toMedia())
+            Version(getString("version_id"), getInt("revision"), getString("approval_status"), toMedia(), getString("parent_version_id"))
         }
         return rows("SELECT * FROM assets WHERE id=?", id) {
-            Asset(id, getString("project_id"), getString("name"), getString("type"), versions, getLong("created_at"))
+            Asset(id, getString("project_id"), getString("name"), getString("type"), versions, getLong("created_at"),
+                getString("description"), getString("active_version_id"), getInt("review_revision"))
         }.firstOrNull() ?: missing("资产不存在")
     }
 }

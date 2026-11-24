@@ -28,7 +28,7 @@ private fun selectRevisions(kind: WritingKind): String {
     val oldPlan = "$plan <> (SELECT id FROM episode_plans WHERE project_id=r.project_id ORDER BY revision DESC LIMIT 1)"
     return "SELECT r.rowid AS cursor,r.*, $story AS story, $plan AS plan, (coalesce($oldStory,0) OR coalesce($oldPlan,0)) AS stale FROM ${kind.table} r"
 }
-private fun Connection.head(kind: WritingKind, target: String) =
+internal fun Connection.head(kind: WritingKind, target: String) =
     rows("${selectRevisions(kind)} WHERE r.${kind.owner}=? ORDER BY r.revision DESC LIMIT 1",target) { revision() }.firstOrNull()
 
 internal data class WritingContext(val project: String, val previous: WritingRevision?, val story: WritingRevision?,

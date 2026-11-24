@@ -55,6 +55,7 @@ class Studio(val settings: Settings) : AutoCloseable {
     val database = StudioDb(settings.storage.resolve("studio.db"))
     val catalog: Catalog = SqlCatalog(database)
     val tasks: Tasks = SqlTasks(database)
+    val boards: Storyboards = SqlStoryboards(database)
     val writing: WritingStore = SqlWriting(database)
     val writer: TextEngine? = when (settings.llmMode) {
         "llama" -> LlamaEngine(settings.llmUrl,settings.llmModel,settings.storage)
@@ -84,6 +85,7 @@ fun Application.studioRoutes(studio: Studio) {
         route("/api/v1") {
             catalogRoutes(studio.catalog)
             writingRoutes(studio)
+            storyboardRoutes(studio)
             productionRoutes(studio)
         }
         staticFiles("/", studio.settings.frontend.toFile(), "index.html")

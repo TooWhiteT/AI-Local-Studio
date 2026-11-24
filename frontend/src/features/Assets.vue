@@ -15,6 +15,8 @@ import {
   type Scalar,
 } from '../api/client'
 import { useStudio } from '../stores/studio'
+import AssetLibrary from './storyboard/AssetLibrary.vue'
+import VersionReview from './storyboard/VersionReview.vue'
 import BlankPanel from '../components/BlankPanel.vue'
 import ParameterField from '../components/ParameterField.vue'
 import StatusTag from '../components/StatusTag.vue'
@@ -90,6 +92,10 @@ watch(
   },
   { immediate: true },
 )
+watch([() => chosen.value?.id, () => flow.value?.id], () => {
+  const binding = flow.value?.manifest.parameters.find(b => b.name === 'prompt')
+  if (binding && chosen.value) params.prompt = chosen.value.description ? chosen.value.name + '，' + chosen.value.description : binding.default
+})
 async function createAsset() {
   if (creating.value) return
   creating.value = true
@@ -151,10 +157,12 @@ async function generate() {
       <n-button :disabled="!active" @click="modal = true">＋ 新建资产</n-button>
     </div>
     <div v-if="project?.status === 'ARCHIVED'" class="notice">此项目已归档，可继续查看历史图片。</div>
+    <asset-library :project-id="projectId" :assets="assets" :selected="selected" :active="active" @select="id => selected=id" />
     <div class="asset-layout">
       <div class="panel generator">
         <div class="panel-title"><h2>生成参数</h2></div>
-        <form class="form-stack" @submit.prevent="generate">
+        <p v-if="chosen?.type==='VOICE'" class="inset">声音档案 · {{ chosen.description || chosen.name }}</p>
+        <form v-else class="form-stack" @submit.prevent="generate">
           <label class="field"
             >目标资产<n-select
               v-model:value="selected"
@@ -201,16 +209,9 @@ async function generate() {
           </div>
           <span v-if="flow?.manifest.mode === 'mock'" class="mode-label">Mock 输出</span>
         </div>
-        <div v-if="chosen?.versions.length" class="gallery">
-          <button class="image-card" v-for="v in chosen.versions" :key="v.id" @click="preview = v">
-            <img :src="mediaUrl(v.file.id)" :alt="chosen.name + ' 版本 ' + v.revision" /><span
-              ><strong>版本 {{ v.revision }}</strong
-              ><small>{{ v.file.width }} × {{ v.file.height }} · 待审核</small></span
-            >
-          </button>
-        </div>
-        <blank-panel
-          v-else
+        <p v-if="chosen?.description" class="inset">{{ chosen.description }}</p>
+        <version-review v-if="chosen?.versions.length" :asset="chosen" :active="active" @preview="v=>preview=v" @updated="load().catch(store.report)" />
+        <blank-panel v-else-if="chosen?.type!=='VOICE'"
           :title="chosen ? '等待第一张图片' : '选择一个资产'"
           :detail="
             chosen

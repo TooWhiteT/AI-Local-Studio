@@ -34,7 +34,7 @@ const rows = computed(() =>
 const projectName = (id: string) => store.projects.find((p) => p.id === id)?.title ?? id.slice(0, 8)
 const title = (t: Task) =>
   t.kind === 'IMAGE' ? (store.workflows.find((w) => w.id === t.snapshot.workflowId)?.manifest.title ?? '图片生成') :
-    ({ OUTLINE: '故事大纲', EPISODE_PLAN: '分集规划', SCRIPT: '分集剧本' }[t.kind])
+    ({ OUTLINE: '故事大纲', EPISODE_PLAN: '分集规划', SCRIPT: '分集剧本', ASSET_EXTRACT: '提取资产', SHOT_PLAN: '分镜计划', SHOT_REGENERATE: '单镜头重做', KEYFRAME: '分镜预览图' }[t.kind])
 const statuses = Object.entries(statusText).map(([value, label]) => ({ label, value }))
 async function action(t: Task, which: 'retry' | 'cancel' | 'reconcile') {
   if (busy.value) return
@@ -119,12 +119,14 @@ function select(id?: string) {
         <p class="mono detail-id">{{ selected.id }}</p>
         <div class="detail-grid">
           <span>项目</span><strong>{{ projectName(selected.projectId) }}</strong
-          ><span>{{ selected.kind === 'IMAGE' ? '模板版本' : '提示词版本' }}</span><strong>{{ selected.snapshot.workflowVersion }}</strong
+          ><span>{{ selected.snapshot.workflowId ? '模板版本' : '提示词版本' }}</span><strong>{{ selected.snapshot.workflowVersion }}</strong
           ><span>引擎版本</span><strong>{{ selected.snapshot.engineVersion }}</strong
           ><span>创建时间</span><strong>{{ dateText(selected.createdAt) }}</strong>
         </div>
         <h3>输入快照</h3>
-        <router-link v-if="selected.kind !== 'IMAGE'" :to="{path:'/projects/'+selected.projectId+'/writing',query:{task:selected.id}}">打开对应稿件</router-link>
+        <router-link v-if="['OUTLINE','EPISODE_PLAN','SCRIPT'].includes(selected.kind)" :to="{path:'/projects/'+selected.projectId+'/writing',query:{task:selected.id}}">打开对应稿件</router-link>
+        <router-link v-if="selected.kind==='ASSET_EXTRACT'" :to="'/projects/'+selected.projectId+'/assets'">查看项目资产</router-link>
+        <router-link v-if="['SHOT_PLAN','SHOT_REGENERATE','KEYFRAME'].includes(selected.kind)" :to="{path:'/projects/'+selected.projectId+'/storyboard',query:{task:selected.id}}">查看对应分镜</router-link>
         <pre>{{ JSON.stringify(selected.snapshot.parameters, null, 2) }}</pre>
         <h3>尝试记录</h3>
         <div v-for="a in selected.attempts" :key="a.id" class="attempt">

@@ -90,23 +90,46 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         val prompt = WritingPrompts.forTask(kind,request,ctx.story?.content,duration).copy(enableThinking=enableThinking)
         val snapshot = Snapshot(null,prompt.version,sha256(sortedJson(json.encodeToJsonElement(prompt)).toString().toByteArray()),
             input,listOf(model),engineVersion ?: "未报告",prompt=prompt)
+        addTextTask(project,if (kind == WritingKind.SCRIPT) "EPISODE" else "PROJECT",target,kind.name,snapshot,hash,key,engineId)
+    }
+    private fun Connection.addTextTask(project: String, targetType: String, target: String, kind: String,
+        snapshot: Snapshot, hash: String, key: String, engineId: String): Accepted {
         val id = uid()
         update("""INSERT INTO render_tasks(id,project_id,target_type,target_id,task_type,input_snapshot_json,
             request_hash,status,priority,idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,'PENDING',0,?,?)""",
-            id,project,if (kind == WritingKind.SCRIPT) "EPISODE" else "PROJECT",target,kind.name,json.encodeToString(snapshot),hash,key,now())
+            id,project,targetType,target,kind,json.encodeToString(snapshot),hash,key,now())
         addAttempt(id,1,engineId)
-        Accepted(id,PENDING)
+        return Accepted(id,PENDING)
+    }
+    private fun boardHash(kind: BoardJob,target: String,request: BoardRequest) =
+        sha256((kind.name+target+sortedJson(json.encodeToJsonElement(request))).toByteArray())
+    override fun priorBoard(kind: BoardJob,target: String,key: String,request: BoardRequest) = db.tx {
+        existing(boardProject(kind,target),key,boardHash(kind,target,request))
+    }
+    override fun enqueueBoard(kind: BoardJob,target: String,key: String,request: BoardRequest,engineId: String,
+        model: String,engineVersion: String?,enableThinking: Boolean?) = db.tx {
+        val project=boardProject(kind,target); val hash=boardHash(kind,target,request)
+        existing(project,key,hash)?.let { return@tx it }
+        val ctx=boardContext(kind,target,request)
+        val prompt=StoryboardPrompts.forTask(kind,ctx.source.scenes.size,request.shotsPerScene,enableThinking)
+        val snapshot=Snapshot(null,prompt.version,sha256(sortedJson(json.encodeToJsonElement(prompt)).toString().toByteArray()),
+            ctx.input,listOf(model),engineVersion ?: "未报告",ctx.references.map { it.versionId },prompt=prompt,shotRevisionId=ctx.selected?.revisionId,
+            referenceDefaults=ctx.references.associate { it.assetId to it.currentVersionId })
+        addTextTask(project,kind.targetType,target,kind.name,snapshot,hash,key,engineId)
     }
     override fun finishWriting(id: String, content: JsonObject, completionId: String?) = db.tx {
         val t = task(id)
         if (t.cancelRequested) { transition(id,CANCELED); return@tx }
         check(t.status in setOf(SUBMITTED,RUNNING))
-        val req = json.decodeFromJsonElement<WritingRequest>(t.snapshot.parameters.getValue("request"))
-        val kind = WritingKind.valueOf(t.kind)
-        validateShape(checkNotNull(t.snapshot.prompt).schema,content,kind.folder)
-        val revision = publishWriting(kind,t.targetId,WritingEdit(req.expectedRevision,content,req.storyRevisionId,req.planId),
-            t.attempts.last().id,req.episodeCount.takeIf { kind == WritingKind.EPISODE_PLAN })
-        update("UPDATE render_tasks SET writing_result_id=? WHERE id=?",revision.id,id)
+        validateShape(checkNotNull(t.snapshot.prompt).schema,content,t.kind)
+        val boardKind=BoardJob.entries.find { it.name==t.kind }
+        val result=if (boardKind!=null) publishBoardJob(t,boardKind,content) else {
+            val req = json.decodeFromJsonElement<WritingRequest>(t.snapshot.parameters.getValue("request"))
+            val kind = WritingKind.valueOf(t.kind)
+            publishWriting(kind,t.targetId,WritingEdit(req.expectedRevision,content,req.storyRevisionId,req.planId),
+                t.attempts.last().id,req.episodeCount.takeIf { kind == WritingKind.EPISODE_PLAN }).id
+        }
+        update("UPDATE render_tasks SET writing_result_id=? WHERE id=?",result,id)
         update("UPDATE task_attempts SET external_id=? WHERE id=?",completionId,t.attempts.last().id)
         transition(id,SUCCEEDED)
     }
@@ -115,7 +138,37 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         val hash = sha256((asset + sortedJson(json.encodeToJsonElement(request))).toByteArray())
         existing(projectId,key,hash)?.let { return@tx it }
         requireActive(projectId)
-        val snapshot = rows("SELECT * FROM workflows WHERE id=?", validId(request.workflowId)) {
+        val (type, parent) = rows("SELECT type,active_version_id FROM assets WHERE id=?",asset) { getString(1) to getString(2) }.single()
+        checkInput(type != "VOICE", "声音档案不能生成图片")
+        val snapshot=imageSnapshot(request,mode).copy(parentAssetVersionId=parent)
+        addImageTask(projectId,"ASSET",asset,"IMAGE",key,hash,request,snapshot,engineId)
+    }
+    override fun enqueueKeyframe(shot: String,key: String,request: KeyframeRequest,engineId: String,mode: String) = db.tx {
+        val episode=episodeForShot(shot)
+        val project=ownerProject(WritingKind.SCRIPT,episode)
+        val hash=sha256(("KEYFRAME"+shot+sortedJson(json.encodeToJsonElement(request))).toByteArray())
+        existing(project,key,hash)?.let { return@tx it }
+        val board=loadBoard(episode)
+        val version=board.version ?: missing("分镜不存在")
+        requireScript(source(version.scriptRevisionId))
+        val current=board.shots.find { it.id==shot } ?: conflict("镜头已移出当前分镜")
+        if (current.revisionId!=request.shotRevisionId) conflict("镜头已更新，请刷新")
+        val scene=board.scenes.single { it.id==current.sceneId }
+        val description=listOf(scene.location,current.framing,current.camera,current.action) +
+            current.references.map { ref ->
+                val depiction=ref.visualPrompt?.takeIf { it.isNotBlank() } ?: ref.description
+                ref.name+"："+depiction.take(200)
+            }
+        val extra=request.parameters["prompt"]?.let { v ->
+            (v as? JsonPrimitive)?.takeIf { it.isString }?.content ?: invalid("提示词应为文本")
+        }.orEmpty()
+        val values=JsonObject(request.parameters+("prompt" to JsonPrimitive((description+extra).filter { it.isNotBlank() }.joinToString("。"))))
+        val gen=Generate(request.workflowId,request.workflowVersion,values)
+        val snapshot=imageSnapshot(gen,mode).copy(shotRevisionId=current.revisionId,assetVersionIds=current.references.map { it.versionId })
+        addImageTask(project,"SHOT",shot,"KEYFRAME",key,hash,gen,snapshot,engineId)
+    }
+    private fun Connection.imageSnapshot(request: Generate,mode: String): Snapshot =
+        rows("SELECT * FROM workflows WHERE id=?", validId(request.workflowId)) {
             val m = json.decodeFromString<Manifest>(getString("manifest_json"))
             checkInput(request.workflowVersion == m.version && mode == m.mode, "模板版本或引擎模式不匹配")
             if (!getBoolean("enabled")) unavailable(getString("reason") ?: "模板已禁用")
@@ -131,6 +184,8 @@ class SqlTasks(private val db: StudioDb) : Tasks {
             Snapshot(request.workflowId, m.version, getString("template_hash"), values,
                 m.models.map { it.name }, getString("engine_version"), seeds = seeds)
         }.firstOrNull() ?: missing("模板不存在")
+    private fun Connection.addImageTask(projectId: String,targetType: String,target: String,kind: String,key: String,
+        hash: String,request: Generate,snapshot: Snapshot,engineId: String): Accepted {
         checkInput(request.priority in 0..9, "优先级须为 0 至 9")
         val id = uid()
         val deps = request.dependencies
@@ -140,11 +195,11 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         // Only new tasks can acquire edges, and each edge points to a committed task.
         checkInput(acyclic(mapOf(id to deps)), "任务依赖成环")
         update("""INSERT INTO render_tasks(id,project_id,target_type,target_id,task_type,workflow_id,input_snapshot_json,
-            request_hash,status,priority,idempotency_key,created_at) VALUES(?,?,'ASSET',?,'IMAGE',?,?,?,'PENDING',?,?,?)""",
-            id, projectId, asset, request.workflowId, json.encodeToString(snapshot), hash, request.priority, key, now())
+            request_hash,status,priority,idempotency_key,created_at) VALUES(?,?,?,?,?,?,?,?,'PENDING',?,?,?)""",
+            id, projectId, targetType, target, kind, request.workflowId, json.encodeToString(snapshot), hash, request.priority, key, now())
         for (dep in deps) update("INSERT INTO task_dependencies VALUES(?,?)", id, dep)
         addAttempt(id, 1, engineId)
-        Accepted(id, PENDING)
+        return Accepted(id, PENDING)
     }
     override fun retry(id: String) = db.tx {
         val t = task(id)
@@ -200,7 +255,7 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         val t = task(taskId)
         val a = t.attempts.last()
         check(a.externalId == null || a.externalId == externalId)
-        if (t.kind == "IMAGE") checkNotNull(externalId)
+        if (t.isImageJob) checkNotNull(externalId)
         update("UPDATE task_attempts SET external_id=? WHERE id=?", externalId?.let(::validId), a.id)
         val to = if (t.cancelRequested) CANCEL_REQUESTED else SUBMITTED
         if (a.status != to) transition(taskId, to) else event(taskId, to.name)
@@ -241,9 +296,10 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         for ((i, f) in files.withIndex()) {
             update("""INSERT INTO media_files(id,project_id,relative_path,sha256,mime,size_bytes,width,height,created_at)
                 VALUES(?,?,?,?,?,?,?,?,?)""", f.id, t.projectId, f.relativePath, f.sha256, f.mime, f.sizeBytes, f.width, f.height, now())
-            update("""INSERT INTO asset_versions(id,asset_id,revision,file_id,metadata_json,approval_status,created_at)
-                VALUES(?,?,?,?,?,'REVIEW_REQUIRED',?)""", uid(), t.assetId, ++revision, f.id, json.encodeToString(t.snapshot), now())
-            update("INSERT INTO render_results VALUES(?,?,?,'IMAGE',?,?)", uid(), a.id, f.id, i, now())
+            if (t.kind=="KEYFRAME") update("INSERT INTO shot_previews VALUES(?,?,?,?)",checkNotNull(t.snapshot.shotRevisionId),f.id,a.id,i)
+            else update("""INSERT INTO asset_versions(id,asset_id,revision,file_id,metadata_json,approval_status,parent_version_id,created_at)
+                VALUES(?,?,?,?,?,'REVIEW_REQUIRED',?,?)""", uid(), t.assetId, ++revision, f.id, json.encodeToString(t.snapshot), t.snapshot.parentAssetVersionId, now())
+            update("INSERT INTO render_results VALUES(?,?,?,?,?,?)", uid(), a.id, f.id, t.kind, i, now())
         }
         transition(taskId, SUCCEEDED)
     }

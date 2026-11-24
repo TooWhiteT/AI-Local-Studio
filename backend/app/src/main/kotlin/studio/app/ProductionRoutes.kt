@@ -52,11 +52,11 @@ fun Route.productionRoutes(s: Studio) {
         val input = call.receive<Reconciliation>()
         val t = tasks.get(call.id())
         val a = t.attempts.last()
-        val engineId = if (t.kind == "IMAGE") s.engine.identity else s.writer?.identity
+        val engineId = if (t.isImageJob) s.engine.identity else s.writer?.identity
         if (t.status != TaskStatus.UNKNOWN || a.id != input.attemptId || a.engineId != engineId) conflict("任务或引擎状态已变化")
         checkInput(input.confirmedStopped, "需要人工确认引擎已停止该任务")
         remote {
-            if (t.kind == "IMAGE") {
+            if (t.isImageJob) {
                 s.engine.info()
                 if (s.engine.queue().isNotEmpty() || s.engine.findPrompt(a.id) != null ||
                     (a.externalId != null && s.engine.history(a.externalId!!, s.workflows.workflow(checkNotNull(t.snapshot.workflowId)).manifest.outputs) != null))

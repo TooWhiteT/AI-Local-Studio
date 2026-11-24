@@ -32,7 +32,7 @@ class StudioDb(path: Path) {
 
     private fun Connection.migrate() {
         update("CREATE TABLE IF NOT EXISTS schema_migrations(version INTEGER PRIMARY KEY,sha256 TEXT NOT NULL,applied_at INTEGER NOT NULL)")
-        val migrations = listOf("001-studio.sql", "002-attempt-resources.sql", "003-writing.sql")
+        val migrations = listOf("001-studio.sql", "002-attempt-resources.sql", "003-writing.sql", "004-storyboards.sql", "005-board-continuity.sql", "006-reference-selection.sql")
         val applied = rows("SELECT version,sha256 FROM schema_migrations") { getInt(1) to getString(2) }.toMap()
         check(applied.keys.all { it in 1..migrations.size }) { "数据库需要更新版本的 Local AI Studio" }
         migrations.forEachIndexed { index, name ->

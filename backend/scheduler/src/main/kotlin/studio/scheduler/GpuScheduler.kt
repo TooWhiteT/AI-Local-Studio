@@ -51,7 +51,7 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
     private suspend fun tick(): String? {
         val active = tasks.lease()
         if (active != null) {
-            if (active.kind != "IMAGE") {
+            if (!active.isImageJob) {
                 if (writer == null || active.attempts.last().engineId != writer.identity) return "未结束的文字任务需要原模型服务"
                 return advanceWriting(active,writer)
             }
@@ -66,12 +66,12 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
         catch (e: Exception) { e.message ?: "等待引擎可用" }
         val waiting = tryDispatch(t) ?: return null
         if (writer == null || tasks.lease() != null) return waiting
-        val otherEngine = if (t.kind == "IMAGE") writer.identity else engine.identity
+        val otherEngine = if (t.isImageJob) writer.identity else engine.identity
         val other = tasks.next(otherEngine) ?: return waiting
         return tryDispatch(other)
     }
     private suspend fun dispatch(t: Task): String? {
-        if (t.kind != "IMAGE") {
+        if (!t.isImageJob) {
             val text = checkNotNull(writer)
             val model = text.info()
             if (!model.available) return model.reason

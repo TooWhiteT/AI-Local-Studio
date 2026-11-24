@@ -31,7 +31,7 @@ export const statusText: Record<Model['Status'], string> = {
   FAILED: '失败',
   CANCELED: '已取消',
 }
-export const assetTypes = { CHARACTER: '角色', SCENE: '场景', PROP: '道具', COSTUME: '服装' } as const
+export const assetTypes = { CHARACTER: '角色', SCENE: '场景', PROP: '道具', COSTUME: '服装', VOICE: '声音' } as const
 export const lastAttempt = (t: Task) => t.attempts[t.attempts.length - 1]
 export const terminal = (t: Task) => ['SUCCEEDED', 'FAILED', 'CANCELED'].includes(t.status)
 export const dateText = (time: number) =>

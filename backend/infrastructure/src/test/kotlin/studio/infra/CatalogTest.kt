@@ -41,7 +41,7 @@ class CatalogTest {
         reopened.tx {
             assertEquals(listOf("wal"), rows("PRAGMA journal_mode") { getString(1) })
             assertEquals(listOf(1), rows("PRAGMA foreign_keys") { getInt(1) })
-            assertEquals(listOf(1,2,3), rows("SELECT version FROM schema_migrations ORDER BY version") { getInt(1) })
+            assertEquals(listOf(1,2,3,4,5,6), rows("SELECT version FROM schema_migrations ORDER BY version") { getInt(1) })
         }
     }
     @Test fun paginationAndInvalidWrites() {
