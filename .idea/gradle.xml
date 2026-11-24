@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
+  <component name="GradleSettings">
+    <option name="linkedExternalProjectsSettings">
+      <GradleProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="gradleJvm" value="#JAVA_HOME" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+            <option value="$PROJECT_DIR$/backend" />
+            <option value="$PROJECT_DIR$/backend/app" />
+            <option value="$PROJECT_DIR$/backend/application" />
+            <option value="$PROJECT_DIR$/backend/core" />
+            <option value="$PROJECT_DIR$/backend/domain" />
+            <option value="$PROJECT_DIR$/backend/engine-api" />
+            <option value="$PROJECT_DIR$/backend/engine-comfy" />
+            <option value="$PROJECT_DIR$/backend/engine-llm" />
+            <option value="$PROJECT_DIR$/backend/infrastructure" />
+            <option value="$PROJECT_DIR$/backend/mock-comfy" />
+            <option value="$PROJECT_DIR$/backend/scheduler" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+    </option>
+  </component>
+</project>

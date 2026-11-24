@@ -1,0 +1,92 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "scenes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "locationKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+          },
+          "characters": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+            },
+            "minItems": 1,
+            "maxItems": 12
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1600
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 600000
+          },
+          "dialogues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "speaker": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 32,
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "emotion": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "speaker",
+                "text",
+                "emotion"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0,
+            "maxItems": 40
+          }
+        },
+        "required": [
+          "locationKey",
+          "characters",
+          "action",
+          "durationMs",
+          "dialogues"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 30
+    }
+  },
+  "required": [
+    "title",
+    "scenes"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,37 @@
+{
+  "id": "mock-image",
+  "version": "1",
+  "title": "模拟图片生成",
+  "mode": "mock",
+  "capabilities": [
+    "text-to-image"
+  ],
+  "parameters": [
+    {
+      "name": "prompt",
+      "label": "画面描述",
+      "type": "STRING",
+      "node": "1",
+      "input": "text",
+      "default": "清晨的街道"
+    },
+    {
+      "name": "seed",
+      "label": "随机种子",
+      "type": "INT",
+      "node": "1",
+      "input": "seed",
+      "default": 42,
+      "min": 0,
+      "max": 2147483647
+    }
+  ],
+  "outputs": [
+    {
+      "node": "1",
+      "field": "images"
+    }
+  ],
+  "models": [],
+  "estimatedVramMb": 0
+}
