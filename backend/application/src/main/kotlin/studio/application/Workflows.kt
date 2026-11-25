@@ -72,10 +72,45 @@ class WorkflowRegistry(val store: WorkflowStore, private val library: PackageLib
 }
 private val segment = Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 fun validSegment(value: String) = segment.matches(value) && ".." !in value
+/** Expand the active V3 dynamic combo and autogrow sockets exactly as declared by object_info. */
 private fun inputDescriptions(info: JsonObject, node: JsonObject): Map<String, JsonElement> {
     val desc = info[node["class_type"]?.jsonPrimitive?.content]?.jsonObject ?: invalid("引擎缺少节点 ${node["class_type"]}")
-    val inputs = desc["input"]?.jsonObject ?: invalid("节点缺少输入定义")
-    return inputs["required"]?.jsonObject.orEmpty() + inputs["optional"]?.jsonObject.orEmpty()
+    val schema = desc["input"] as? JsonObject ?: invalid("节点缺少输入定义")
+    val supplied = node["inputs"] as? JsonObject ?: invalid("节点缺少 inputs")
+    val fields = mutableMapOf<String, JsonElement>()
+    fun expand(group: JsonObject, prefix: String) {
+        for (kind in listOf("required", "optional")) for ((key, raw) in (group[kind] as? JsonObject).orEmpty()) {
+            val path = prefix + key
+            val spec = raw as? JsonArray ?: invalid("节点输入定义无效")
+            val type = (spec.firstOrNull() as? JsonPrimitive)?.content
+            val options = spec.getOrNull(1) as? JsonObject
+            if (type == "COMFY_AUTOGROW_V3") {
+                val template = options?.get("template")?.jsonObject ?: invalid("缺少动态端口模板")
+                val nested = template["input"]?.jsonObject?.get("required")?.jsonObject?.values?.singleOrNull()
+                    ?: invalid("动态端口模板无效")
+                val names = (template["names"] as? JsonArray)?.map { "$path.${it.jsonPrimitive.content}" } ?: run {
+                    val socketPrefix = template["prefix"]?.jsonPrimitive?.content ?: invalid("缺少动态端口名称或前缀")
+                    val max = template["max"]?.jsonPrimitive?.intOrNull ?: invalid("缺少动态端口上限")
+                    checkInput(max in 0..1024, "动态端口上限无效")
+                    (0 until max).map { "$path.$socketPrefix$it" }
+                }
+                checkInput(names.count(supplied::containsKey) >= (template["min"]?.jsonPrimitive?.int ?: 0), "动态端口 $path 缺少必要输入")
+                names.forEach { fields[it] = nested }
+                continue
+            }
+            if (kind == "required") checkInput(path in supplied, "节点缺少必要输入 $path")
+            if (type == "COMFY_DYNAMICCOMBO_V3") {
+                val choices = options?.get("options") as? JsonArray ?: invalid("缺少动态选项")
+                val selected = supplied[path] ?: continue
+                val choice = choices.map { it.jsonObject }.firstOrNull { it["key"] == selected }
+                    ?: invalid("节点输入 $path 的选项不可用")
+                fields[path] = JsonArray(listOf(JsonArray(choices.map { it.jsonObject.getValue("key") })))
+                choice["inputs"]?.jsonObject?.let { expand(it, "$path.") }
+            } else fields[path] = spec
+        }
+    }
+    expand(schema, "")
+    return fields
 }
 private fun choices(spec: JsonArray): JsonArray? = spec.firstOrNull() as? JsonArray ?:
     (spec.getOrNull(1) as? JsonObject)?.get("options") as? JsonArray
@@ -97,7 +132,21 @@ private fun validateLiteral(value: JsonElement, spec: JsonArray, field: String) 
 fun validatePackage(pkg: Package, mode: String, info: JsonObject) {
     val m = pkg.manifest
     checkInput(validSegment(m.id) && validSegment(m.version) && m.title.isNotBlank() && m.title.length <= 120, "模板标识或名称无效")
-    checkInput(m.mode == mode && m.capabilities == listOf("text-to-image"), "模板模式或能力不匹配")
+    val i2v = m.capabilities == listOf("image-to-video")
+    val r2v = m.capabilities == listOf("reference-to-video")
+    val video = i2v || r2v
+    checkInput(m.mode == mode && (video || m.capabilities == listOf("text-to-image")), "模板模式或能力不匹配")
+    checkInput((m.firstFrame != null) == i2v && (i2v || m.lastFrame == null) && (m.referenceImage != null) == r2v, "视频能力与受控图片绑定不一致")
+    checkInput(if (video) m.frameSize?.let { it.width in 1..4096 && it.height in 1..4096 && it.width.toLong() * it.height <= 4194304 } == true
+        else m.frameSize == null, "视频模板需要受控的关键帧尺寸")
+    val frames = listOfNotNull(m.firstFrame, m.lastFrame, m.referenceImage)
+    checkInput(frames.distinct().size == frames.size, "首尾帧必须使用各自的节点")
+    for (frame in frames) {
+        val source = pkg.graph[frame.node] as? JsonObject ?: invalid("关键帧节点不存在")
+        checkInput(source["class_type"] == JsonPrimitive("LoadImage") && frame.input == "image" &&
+            source["inputs"]?.jsonObject?.get(frame.input)?.let { it is JsonPrimitive && it.isString } == true &&
+            m.parameters.none { it.node == frame.node && it.input == frame.input }, "关键帧绑定必须指向独立的 LoadImage.image")
+    }
     checkInput(m.estimatedVramMb in 0..32768 && m.outputs.isNotEmpty() && m.outputs.size <= 16, "资源估算或输出数量无效")
     checkInput(pkg.graph.isNotEmpty() && m.parameters.size <= 64, "空图或参数过多")
     val links = mutableMapOf<String, MutableList<String>>()
@@ -105,8 +154,6 @@ fun validatePackage(pkg: Package, mode: String, info: JsonObject) {
         val node = raw as? JsonObject ?: invalid("需要 API 格式的节点图")
         val fields = inputDescriptions(info, node)
         val inputs = node["inputs"] as? JsonObject ?: invalid("节点 $id 缺少 inputs")
-        val desc = info.getValue(node.getValue("class_type").jsonPrimitive.content).jsonObject
-        checkInput(inputs.keys.containsAll(desc["input"]?.jsonObject?.get("required")?.jsonObject.orEmpty().keys), "节点 $id 缺少必要输入")
         for ((key, value) in inputs) {
             val spec = fields[key] as? JsonArray ?: invalid("节点 $id 输入 $key 不可用")
             if (value is JsonArray) {
@@ -117,7 +164,7 @@ fun validatePackage(pkg: Package, mode: String, info: JsonObject) {
                 val index = value[1].jsonPrimitive.intOrNull ?: invalid("输出索引无效")
                 checkInput(outputs != null && index in outputs.indices, "引用的输出端口不存在")
                 links.getOrPut(id) { mutableListOf() }.add(upstream)
-            } else {
+            } else if (GraphInput(id, key) !in frames) {
                 validateLiteral(value, spec, "$id.$key")
             }
         }
@@ -147,10 +194,12 @@ fun validatePackage(pkg: Package, mode: String, info: JsonObject) {
             choices(spec)?.contains(JsonPrimitive(model.name)) == true, "依赖模型不可用")
     }
     checkInput(m.outputs.distinct().size == m.outputs.size, "输出声明重复")
+    if (video) checkInput(m.outputs.size == 1, "镜头渲染需要一个输出节点")
     for (out in m.outputs) {
         val node = pkg.graph[out.node]?.jsonObject ?: invalid("输出节点不存在")
-        checkInput(out.field == "images" && info[node["class_type"]?.jsonPrimitive?.content]?.jsonObject?.get("output_node") == JsonPrimitive(true),
-            "需要已声明的图片输出节点")
+        val validField = if (video) validSegment(out.field) else out.field == "images"
+        checkInput(validField && info[node["class_type"]?.jsonPrimitive?.content]?.jsonObject?.get("output_node") == JsonPrimitive(true),
+            "需要已声明的媒体输出节点")
     }
 }
 private fun checkValue(b: Binding, value: JsonElement) {
@@ -181,5 +230,22 @@ fun bind(graph: JsonObject, manifest: Manifest, supplied: JsonObject): JsonObjec
         val inputs = node.getValue("inputs").jsonObject + (p.input to values.getValue(p.name))
         result[p.node] = JsonObject(node + ("inputs" to JsonObject(inputs)))
     }
+    return JsonObject(result)
+}
+
+
+fun bindFrames(graph: JsonObject, manifest: Manifest, first: String?, last: String?, reference: String?): JsonObject {
+    checkInput((manifest.firstFrame != null) == (first != null) && (manifest.lastFrame != null) == (last != null) &&
+        (manifest.referenceImage != null) == (reference != null), "任务输入图片与模板绑定不一致")
+    val result = graph.toMutableMap()
+    fun assign(input: GraphInput, name: String) {
+        checkInput(Regex("studio-[a-f0-9]{64}\\.png").matches(name), "关键帧文件名无效")
+        val node = result.getValue(input.node).jsonObject
+        val inputs = node.getValue("inputs").jsonObject + (input.input to JsonPrimitive(name))
+        result[input.node] = JsonObject(node + ("inputs" to JsonObject(inputs)))
+    }
+    if (first != null) assign(checkNotNull(manifest.firstFrame), first)
+    if (reference != null) assign(checkNotNull(manifest.referenceImage), reference)
+    if (last != null) assign(checkNotNull(manifest.lastFrame), last)
     return JsonObject(result)
 }

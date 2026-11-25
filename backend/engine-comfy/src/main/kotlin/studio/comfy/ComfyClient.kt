@@ -5,6 +5,7 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.utils.io.jvm.javaio.*
@@ -47,6 +48,8 @@ class ComfyClient(address: String, override val mode: String, private val target
     private val board = AtomicReference<BoardMemory?>()
     private var monitor: Job? = null
     private var nextConnect = 0L
+    @Volatile private var jobCancelUnavailable = false
+    @Volatile private var interruptedJob: String? = null
     @Synchronized private fun startBoardMonitor() {
         val now = System.nanoTime()
         if (monitor?.isActive == true || now < nextConnect) return
@@ -146,6 +149,22 @@ class ComfyClient(address: String, override val mode: String, private val target
             override fun close() { reader.cancel(); session.cancel() }
         }
     }
+    override suspend fun uploadFrame(name: String, png: ByteArray): String {
+        require(name == "studio-${sha256(png)}.png" && png.size in 1..32 * 1024 * 1024)
+        val response = client.submitFormWithBinaryData("$base/upload/image", formData {
+            append("type", "input")
+            append("overwrite", "false")
+            append("image", png, Headers.build {
+                append(HttpHeaders.ContentType, "image/png")
+                append(HttpHeaders.ContentDisposition, "filename=\"" + name + "\"")
+            })
+        })
+        if (!response.status.isSuccess()) unavailable("上传关键帧失败，HTTP ${response.status.value}")
+        val saved = json.parseToJsonElement(response.bodyAsText()).jsonObject
+        if (saved["name"] != JsonPrimitive(name) || saved["subfolder"] != JsonPrimitive("") || saved["type"] != JsonPrimitive("input"))
+            throw InvalidOutput("引擎未确认预期的关键帧文件名")
+        return name
+    }
     override suspend fun submit(clientId: String, graph: JsonObject): String {
         val res = post("/prompt", buildJsonObject { put("client_id", validId(clientId)); put("prompt", graph) })
         if (res.status == HttpStatusCode.BadRequest) throw PromptRejected("引擎拒绝模板: " + res.bodyAsText().take(600))
@@ -167,20 +186,21 @@ class ComfyClient(address: String, override val mode: String, private val target
             val msg = messages.lastOrNull { it.firstOrNull() == JsonPrimitive("execution_error") }?.getOrNull(1) as? JsonObject
             val reason = msg?.get("exception_message")?.jsonPrimitive?.content.orEmpty()
             val oom = reason.contains("out of memory", true) || msg?.get("exception_type").toString().contains("OutOfMemory")
-            return History.Failure(if (oom) "OOM" else "ENGINE_ERROR", if (oom) "显存不足，请降低图片分辨率" else reason.take(600).ifBlank { "引擎执行失败" })
+            return History.Failure(if (oom) "OOM" else "ENGINE_ERROR", if (oom) "显存不足，请降低生成分辨率" else reason.take(600).ifBlank { "引擎执行失败" })
         }
         if (status["completed"] != JsonPrimitive(true)) return null
         val results = item["outputs"] as? JsonObject ?: throw InvalidOutput("history 缺少输出")
         val files = outputs.flatMap { output ->
             val items = (results[output.node] as? JsonObject)?.get(output.field) as? JsonArray
-            if (items.isNullOrEmpty()) throw InvalidOutput("声明的图片节点未返回结果")
+            if (items.isNullOrEmpty()) throw InvalidOutput("声明的媒体节点未返回结果")
             items.map {
-                val img = it as? JsonObject ?: throw InvalidOutput("无效的图片记录")
-                OutputRef(img["filename"]?.jsonPrimitive?.content.orEmpty(), img["subfolder"]?.jsonPrimitive?.content.orEmpty(),
-                    img["type"]?.jsonPrimitive?.content.orEmpty()).also(::validateOutput)
+                val img = it as? JsonObject ?: throw InvalidOutput("无效的媒体记录")
+                fun field(name: String): String = (img[name] as? JsonPrimitive)?.takeIf { value -> value.isString }?.content
+                    ?: throw InvalidOutput("媒体记录缺少有效的 $name")
+                OutputRef(field("filename"), if ("subfolder" in img) field("subfolder") else "", field("type")).also(::validateOutput)
             }
         }
-        if (files.size !in 1..16) throw InvalidOutput("输出图片数量超出限制")
+        if (files.size !in 1..16) throw InvalidOutput("输出媒体数量超出限制")
         return History.Success(files)
     }
     override suspend fun cancel(entry: QueueEntry) {
@@ -188,6 +208,19 @@ class ComfyClient(address: String, override val mode: String, private val target
         val res = when {
             !entry.running -> post("/queue", buildJsonObject { put("delete", JsonArray(listOf(JsonPrimitive(id)))) })
             targetedInterrupt -> post("/interrupt", buildJsonObject { put("prompt_id", id) })
+            mode == "comfy" -> {
+                if (jobCancelUnavailable || interruptedJob == id) return
+                val reply = client.post("$base/api/jobs/$id/cancel")
+                if (reply.status in setOf(HttpStatusCode.NotFound, HttpStatusCode.MethodNotAllowed, HttpStatusCode.NotImplemented)) {
+                    jobCancelUnavailable = true
+                    return
+                }
+                if (!reply.status.isSuccess()) unavailable("引擎未确认定向取消请求，HTTP ${reply.status.value}")
+                val ack = (json.parseToJsonElement(reply.bodyAsText()) as? JsonObject)?.get("cancelled")
+                if (ack != JsonPrimitive(true) && ack != JsonPrimitive(false)) unavailable("引擎未返回有效的定向取消回执")
+                if (ack == JsonPrimitive(true)) interruptedJob = id
+                return
+            }
             else -> return
         }
         if (!res.status.isSuccess()) unavailable("引擎未确认取消请求")
@@ -198,9 +231,10 @@ class ComfyClient(address: String, override val mode: String, private val target
             parameter("filename", ref.filename); parameter("subfolder", ref.subfolder); parameter("type", ref.type)
         }.execute {
             if (it.status == HttpStatusCode.NotFound) throw InvalidOutput("引擎输出文件已丢失")
-            if (!it.status.isSuccess()) unavailable("无法读取图片，HTTP ${it.status.value}")
-            it.bodyAsChannel().toInputStream().use { stream -> stream.readNBytes(32 * 1024 * 1024 + 1) }.also { data ->
-                if (data.size > 32 * 1024 * 1024) throw InvalidOutput("图片超过 32 MiB")
+            if (!it.status.isSuccess()) unavailable("无法读取媒体，HTTP ${it.status.value}")
+            val limit = (if (ref.filename.endsWith(".mp4", ignoreCase = true)) 128 else 32) * 1024 * 1024
+            it.bodyAsChannel().toInputStream().use { stream -> stream.readNBytes(limit + 1) }.also { data ->
+                if (data.size > limit) throw InvalidOutput("引擎输出超过媒体大小限制")
             }
         }
     }

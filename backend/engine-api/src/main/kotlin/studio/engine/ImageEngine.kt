@@ -1,5 +1,7 @@
 package studio.engine
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import java.io.Closeable
@@ -8,9 +10,16 @@ import java.io.Closeable
     val input: String, val default: JsonPrimitive, val min: Double? = null, val max: Double? = null)
 @Serializable data class ModelDependency(val node: String, val input: String, val name: String)
 @Serializable data class ImageOutput(val node: String, val field: String = "images")
+@Serializable data class GraphInput(val node: String, val input: String)
+@Serializable data class FrameSize(val width: Int, val height: Int)
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable data class Manifest(val id: String, val version: String, val title: String, val mode: String,
     val capabilities: List<String>, val parameters: List<Binding>, val outputs: List<ImageOutput>,
-    val models: List<ModelDependency>, val estimatedVramMb: Int)
+    val models: List<ModelDependency>, val estimatedVramMb: Int,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val firstFrame: GraphInput? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val lastFrame: GraphInput? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val referenceImage: GraphInput? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val frameSize: FrameSize? = null)
 @Serializable data class EngineInfo(val mode: String, val version: String, val available: Boolean = true,
     val reason: String? = null, val vramTotal: Long? = null, val vramFree: Long? = null,
     val ramTotal: Long? = null, val ramFree: Long? = null)
@@ -28,6 +37,7 @@ interface ProgressStream : Closeable {
 }
 class PromptRejected(message: String) : Exception(message)
 class InvalidOutput(message: String) : Exception(message)
+class MediaProbeUnavailable : Exception("无法启动 ffprobe，请安装 FFmpeg 并确保工作台进程 PATH 可找到 ffprobe")
 
 interface ImageEngine : Closeable {
     suspend fun releaseModels()
@@ -38,6 +48,7 @@ interface ImageEngine : Closeable {
     suspend fun objectInfo(): JsonObject
     suspend fun queue(): List<QueueEntry>
     suspend fun listen(clientId: String): ProgressStream
+    suspend fun uploadFrame(name: String, png: ByteArray): String
     suspend fun submit(clientId: String, graph: JsonObject): String
     suspend fun history(id: String, outputs: List<ImageOutput>): History?
     suspend fun findPrompt(clientId: String): String?

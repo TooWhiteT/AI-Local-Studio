@@ -14,7 +14,7 @@ data class WriterLoadBudget(val vramMiB: Long = 0, val ramMiB: Long = 0) {
 
 class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegistry, private val media: MediaLibrary,
     private val engine: ImageEngine, private val pollMs: Long = 250, private val writer: TextEngine? = null,
-    private val loadBudget: WriterLoadBudget = WriterLoadBudget()) {
+    private val loadBudget: WriterLoadBudget = WriterLoadBudget(), private val tts: TtsEngine? = null, private val exporter: ExportEngine? = null) {
     private val workflows get() = registry.store
     private var worker: Job? = null
     private var stream: ProgressStream? = null
@@ -51,6 +51,14 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
     private suspend fun tick(): String? {
         val active = tasks.lease()
         if (active != null) {
+            if (active.kind == "SHOT_AUDIO") {
+                val speech = tts?.takeIf { it.identity == active.attempts.last().engineId } ?: return "未结束的配音任务需要原语音服务"
+                return advanceSpeech(active, speech)
+            }
+            if (active.kind == "EPISODE_EXPORT") {
+                val export = exporter?.takeIf { it.identity == active.attempts.last().engineId } ?: return "未结束的导出任务需要原执行器"
+                return advanceExport(active, export)
+            }
             if (!active.isImageJob) {
                 if (writer == null || active.attempts.last().engineId != writer.identity) return "未结束的文字任务需要原模型服务"
                 return advanceWriting(active,writer)
@@ -59,18 +67,37 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
             return reconcile(active)
         }
         detach()
-        val engines = listOfNotNull(engine.identity,writer?.identity).toTypedArray()
-        val t = tasks.next(*engines) ?: return null
-        suspend fun tryDispatch(task: Task): String? = try { dispatch(task) }
-        catch (e: CancellationException) { throw e }
-        catch (e: Exception) { e.message ?: "等待引擎可用" }
-        val waiting = tryDispatch(t) ?: return null
-        if (writer == null || tasks.lease() != null) return waiting
-        val otherEngine = if (t.isImageJob) writer.identity else engine.identity
-        val other = tasks.next(otherEngine) ?: return waiting
-        return tryDispatch(other)
+        val engines = listOfNotNull(engine.identity, writer?.identity, tts?.identity, exporter?.identity).toMutableList()
+        var waiting: String? = null
+        while (engines.isNotEmpty()) {
+            val task = tasks.next(*engines.toTypedArray()) ?: break
+            val reason = try { dispatch(task) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { e.message ?: "等待引擎可用" }
+            if (reason == null || tasks.lease() != null) return reason
+            if (waiting == null) waiting = reason
+            if (!engines.remove(task.attempts.last().engineId)) return waiting
+        }
+        return waiting
     }
-    private suspend fun dispatch(t: Task): String? {
+    private suspend fun dispatch(t: Task, claimedRender: Boolean = false): String? {
+        if (t.kind == "SHOT_AUDIO") {
+            val speech = checkNotNull(tts)
+            val info = speech.info()
+            if (!info.available) return info.reason ?: "语音服务离线"
+            if (info.device == "gpu" && engine.mode == "comfy" && engine.queue().isNotEmpty()) return "等待 ComfyUI 队列清空"
+            if (info.device == "gpu" && writer?.real == true && !writer.sleeping()) return "等待 llama.cpp 休眠释放显存"
+            if (tasks.claim(t.id, t.attempts.last().id)) return advanceSpeech(tasks.get(t.id), speech)
+            return null
+        }
+        if (t.kind == "EPISODE_EXPORT") {
+            val export = checkNotNull(exporter)
+            if (export.version() != t.snapshot.engineVersion) {
+                tasks.finish(t.id, error = Problem("ENGINE_CHANGED","FFmpeg 版本已变化，请重新建立导出任务")); return null
+            }
+            if (tasks.claim(t.id, t.attempts.last().id)) return advanceExport(tasks.get(t.id), export)
+            return null
+        }
         if (!t.isImageJob) {
             val text = checkNotNull(writer)
             val model = text.info()
@@ -101,30 +128,58 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
         if (total != null && wf.manifest.estimatedVramMb * 1024L * 1024 > total) {
             tasks.finish(t.id, error = Problem("VRAM_LIMIT", "模板显存估算超过设备容量")); return null
         }
-        val graph = bind(workflows.graph(wf.id), wf.manifest, t.snapshot.parameters)
         val attempt = t.attempts.last()
         if (engine.queue().isNotEmpty()) return "等待 ComfyUI 外部队列清空"
         if (engine.mode == "comfy" && writer?.real == true && !writer.sleeping()) {
             val free = info.vramFree
-            if (free == null || wf.manifest.estimatedVramMb * 1048576L > free)
+            if (t.kind == "SHOT_RENDER" || free == null || wf.manifest.estimatedVramMb * 1048576L > free)
                 return "等待 llama.cpp 休眠释放显存，请检查 --sleep-idle-seconds"
             if (!writer.idle()) return "等待 llama.cpp 空闲槽位"
         }
+        val imageGraph = if (t.kind == "SHOT_RENDER") null else bind(workflows.graph(workflowId), wf.manifest, t.snapshot.parameters)
         attach(attempt.id)
-        if (!tasks.claim(t.id, attempt.id)) return null
+        if (!claimedRender && !tasks.claim(t.id, attempt.id)) return null
+        recordSample(attempt.id, info)
+        if (t.kind == "SHOT_RENDER") return prepareRender(tasks.get(t.id), wf)
+        return submit(t.id, attempt.id, checkNotNull(imageGraph))
+    }
+    private suspend fun prepareRender(t: Task, workflow: Workflow): String? {
+        val attempt = t.attempts.last()
+        if (t.cancelRequested) { tasks.finish(t.id); return null }
+        val manifest = workflow.manifest
+        val size = checkNotNull(manifest.frameSize)
+        suspend fun upload(frame: Media): String {
+            val png = media.readFirstFrame(t.projectId, frame, size.width, size.height)
+            return engine.uploadFrame("studio-${sha256(png)}.png", png)
+        }
+        val graph = try {
+            val first = t.snapshot.firstFrame?.let { upload(it) }
+            val last = t.snapshot.lastFrame?.let { upload(it) }
+            val reference = t.snapshot.referenceFrame?.let { upload(it) }
+            bindFrames(bind(workflows.graph(workflow.id), manifest, t.snapshot.parameters), manifest, first, last, reference)
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            tasks.finish(t.id, error = Problem("FRAME_INPUT_ERROR", e.message?.take(240) ?: "关键帧上传失败"))
+            return null
+        }
+        attach(attempt.id)
+        // Uploads can be repeated by content hash after a restart. Once this marker commits, only remote reconciliation is safe.
+        if (!tasks.beginRenderSubmit(t.id, attempt.id)) return null
+        return submit(t.id, attempt.id, graph)
+    }
+    private suspend fun submit(taskId: String, attemptId: String, graph: JsonObject): String? {
         try {
-            val id = engine.submit(attempt.id, graph)
-            tasks.acknowledge(t.id, id)
+            val id = engine.submit(attemptId, graph)
+            tasks.acknowledge(taskId, id)
         } catch (e: CancellationException) { throw e }
         catch (e: PromptRejected) {
-            tasks.finish(t.id, error = Problem("PROMPT_REJECTED", e.message.orEmpty()))
+            tasks.finish(taskId, error = Problem("PROMPT_REJECTED", e.message.orEmpty()))
             return null
         }
         catch (e: Exception) {
-            tasks.uncertain(t.id, "未取得可靠提交回执，正在核对远端记录")
+            tasks.uncertain(taskId, "未取得可靠提交回执，正在核对远端记录")
             return null
         }
-        recordSample(attempt.id, info)
         return null
     }
     private suspend fun reconcile(t: Task): String? {
@@ -136,6 +191,10 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
             if (info != null) recordSample(a.id, info)
         }
         if (a.externalId == null) {
+            if (t.kind == "SHOT_RENDER" && !a.submitStarted) {
+                if (t.cancelRequested) { tasks.finish(t.id); return null }
+                return dispatch(t, claimedRender = true)
+            }
             tasks.uncertain(t.id, "提交状态待核对")
             val found = engine.findPrompt(a.id) ?: return "等待按 attempt 核对 ComfyUI 提交记录"
             tasks.acknowledge(t.id, found)
@@ -169,7 +228,20 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
                 is History.Success -> {
                     val files = done.files.mapIndexed { i, ref ->
                         val bytes = engine.download(ref)
-                        try { media.save(t.projectId, a.id, i, bytes) }
+                        try {
+                            if (t.kind == "SHOT_RENDER") media.saveVideo(t.projectId, a.id, i, bytes).also {
+                                val snapshot = t.snapshot
+                                if ((snapshot.targetWidth != null && snapshot.targetWidth != it.width) ||
+                                    (snapshot.targetHeight != null && snapshot.targetHeight != it.height) ||
+                                    (snapshot.plannedFrameCount != null && snapshot.plannedFrameCount?.toLong() != it.frameCount))
+                                    throw InvalidOutput("视频尺寸或解码帧数与入队时的计划不符")
+                            }
+                            else media.save(t.projectId, a.id, i, bytes)
+                        }
+                        catch (e: MediaProbeUnavailable) {
+                            tasks.finish(t.id, error = Problem("FFPROBE_MISSING", e.message.orEmpty()))
+                            return null
+                        }
                         catch (e: java.io.IOException) {
                             tasks.finish(t.id, error = Problem("STORAGE_ERROR", "无法写入资产文件，请检查磁盘剩余空间和目录权限"))
                             return null
@@ -182,6 +254,98 @@ class GpuScheduler(private val tasks: Tasks, private val registry: WorkflowRegis
             if (engine.queue().none { it.id == id }) tasks.finish(t.id, error = Problem("INVALID_OUTPUT", e.message.orEmpty()))
         }
         return null
+    }
+    private suspend fun advanceSpeech(t: Task, speech: TtsEngine): String? {
+        val attempt = t.attempts.last()
+        val pinnedDevice = t.snapshot.parameters["device"]?.jsonPrimitive?.content
+        val info = if (t.status == SUBMITTING || pinnedDevice == null) speech.info() else null
+        if (info != null && !info.available) return info.reason ?: "等待原语音服务恢复"
+        val gpu = (pinnedDevice ?: info?.device) == "gpu"
+        val call = checkNotNull(t.snapshot.speech).copy(modelVersion = t.snapshot.engineVersion)
+        if (t.status == SUBMITTING) {
+            if (info == null || info.modelVersionFor(call.voiceId) != t.snapshot.engineVersion ||
+                pinnedDevice != null && info.device != pinnedDevice) {
+                tasks.finish(t.id, error = Problem("VOICE_CHANGED", "任务绑定的音色或服务版本已改变")); return null
+            }
+            if (gpu) {
+                if (writer?.real == true && !writer.sleeping()) return "等待 llama.cpp 休眠释放显存"
+                if (engine.mode == "comfy") {
+                    if (engine.queue().isNotEmpty()) return "等待 ComfyUI 队列清空"
+                    if (freedForAttempt != attempt.id) {
+                        engine.releaseModels(); freedForAttempt = attempt.id
+                        return "正在等待 ComfyUI 释放模型"
+                    }
+                }
+            }
+            tasks.acknowledge(t.id, attempt.id)
+        }
+        val state = try { speech.advance(attempt.id, call, t.cancelRequested) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                val reason = e.message?.take(240) ?: "等待原语音服务恢复对账"
+                tasks.uncertain(t.id, reason)
+                return reason
+            }
+        if (t.status == UNKNOWN) tasks.acknowledge(t.id, attempt.id)
+        if (state == SpeechRun.Active) {
+            if (!t.cancelRequested) tasks.running(t.id)
+            return if (t.cancelRequested) "等待语音服务结束" else null
+        }
+        if (gpu) speech.releaseModels()
+        if (t.cancelRequested) { tasks.finish(t.id); return null }
+        when (state) {
+            is SpeechRun.Failed -> tasks.finish(t.id, error = Problem(state.code, state.message))
+            SpeechRun.Cancelled -> tasks.finish(t.id, error = Problem("ENGINE_CANCELLED", "语音服务已取消合成"))
+            is SpeechRun.Completed -> finishMedia(t) { media.saveAudio(t.projectId, attempt.id, 0, state.wav) }
+            else -> Unit
+        }
+        return null
+    }
+    private suspend fun advanceExport(t: Task, export: ExportEngine): String? {
+        val attempt = t.attempts.last()
+        if (t.status == SUBMITTING) tasks.acknowledge(t.id, attempt.id)
+        val plan = checkNotNull(t.snapshot.export)
+        val state = export.advance(attempt.id, t.cancelRequested) {
+            val paths = mutableMapOf<String,String>()
+            fun path(file: Media) = paths.getOrPut(file.id) { media.verifiedPath(t.projectId, file) }
+            Movie(plan.width, plan.height, plan.fps, plan.clips.map { clip ->
+                val captions = clip.captions.map { MovieCaption(it.startMs, it.durationMs, it.text) } + clip.dialogues
+                    .filter { it.subtitle.isNotBlank() }.map { MovieCaption(it.startMs, checkNotNull(it.audio.durationMs), it.subtitle) }
+                MovieClip(path(clip.video), clip.sourceInMs, clip.durationMs, clip.originalGain,
+                    clip.dialogues.map { MovieAudio(path(it.audio), it.startMs, it.gain) }, captions)
+            })
+        }
+        if (state == ExportRun.Active) {
+            if (!t.cancelRequested) tasks.running(t.id)
+            return if (t.cancelRequested) "等待导出进程退出" else null
+        }
+        if (t.cancelRequested) {
+            tasks.finish(t.id)
+            export.releaseResult(attempt.id)
+            return null
+        }
+        when (state) {
+            is ExportRun.Failed -> tasks.finish(t.id, error = Problem(state.code, state.message))
+            ExportRun.Cancelled -> tasks.finish(t.id, error = Problem("ENGINE_CANCELLED", "本地导出已取消"))
+            is ExportRun.Completed -> finishMedia(t) {
+                val result = media.saveExport(t.projectId, attempt.id, state.path)
+                val duration = plan.clips.sumOf { it.durationMs }
+                if (result.width != plan.width || result.height != plan.height || result.fps != plan.fps.toDouble() ||
+                    kotlin.math.abs(checkNotNull(result.durationMs) - duration) > 2000L / plan.fps + 10)
+                    throw InvalidOutput("成片的尺寸、帧率或时长与固定时间线不符")
+                result
+            }
+            else -> Unit
+        }
+        export.releaseResult(attempt.id)
+        return null
+    }
+    private fun finishMedia(task: Task, read: () -> Media) {
+        val result = try { read() }
+            catch (e: InvalidOutput) { tasks.finish(task.id, error = Problem("INVALID_OUTPUT", e.message.orEmpty())); return }
+            catch (e: MediaProbeUnavailable) { tasks.finish(task.id, error = Problem("FFPROBE_MISSING", e.message.orEmpty())); return }
+            catch (e: java.io.IOException) { tasks.finish(task.id, error = Problem("STORAGE_ERROR", "无法写入或读取媒体文件")); return }
+        tasks.finish(task.id, listOf(result))
     }
     private fun textCall(t: Task) = TextCall(t.kind,t.snapshot.models.single(),checkNotNull(t.snapshot.prompt),t.snapshot.parameters)
 

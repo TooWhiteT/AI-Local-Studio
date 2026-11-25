@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Local AI Studio",
-    "version": "0.3.0"
+    "version": "0.5.0"
   },
   "servers": [
     {
@@ -2381,6 +2381,960 @@
           }
         }
       }
+    },
+    "/shots/{id}/render": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "renderShot",
+        "summary": "提交锁定镜头修订和已审核帧的视频任务",
+        "responses": {
+          "202": {
+            "description": "已接受",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShotRenderRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/episodes/{id}/render": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "renderEpisode",
+        "summary": "原子提交所选镜头的渲染批次",
+        "responses": {
+          "202": {
+            "description": "已接受",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchAccepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRenderRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/shots/{id}/keyframes/{fileId}/approve": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "in": "path",
+          "name": "fileId",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "approveRenderFrame",
+        "summary": "选用镜头的首帧或尾帧",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Shot"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FrameApproval"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shots/{id}/renders": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "listShotRenders",
+        "summary": "查询镜头视频版本及审核状态",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "shotRevisionId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    "/shots/{id}/renders/{versionId}/approve": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "in": "path",
+          "name": "versionId",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "approveShotRender",
+        "summary": "审核通过镜头视频版本",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WritingApproval"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shots/{id}/renders/{versionId}/reject": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "in": "path",
+          "name": "versionId",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "rejectShotRender",
+        "summary": "弃用镜头视频版本",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WritingApproval"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/engines/tts": {
+      "parameters": [],
+      "get": {
+        "operationId": "getTtsInfo",
+        "summary": "获取配音引擎和真实音色",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TtsInfo"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/engines/media": {
+      "parameters": [],
+      "get": {
+        "operationId": "getExportCapability",
+        "summary": "获取导出工具状态",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportCapability"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{id}/voices": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "listVoiceBindings",
+        "summary": "查询角色音色",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VoiceBinding"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{id}/voices/{characterKey}": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "in": "path",
+          "name": "characterKey",
+          "schema": {
+            "type": "string"
+          },
+          "required": true
+        }
+      ],
+      "put": {
+        "operationId": "bindVoice",
+        "summary": "更新角色固定音色",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceBinding"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoiceEdit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shots/{id}/audio": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "shotAudio",
+        "summary": "查询镜头对白及配音版本",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShotAudio"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "shotRevisionId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    "/shots/{id}/audio/generate": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "generateSpeech",
+        "summary": "提交单句配音任务",
+        "responses": {
+          "202": {
+            "description": "已接受",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeechRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/shots/{id}/audio/{takeId}/select": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        },
+        {
+          "in": "path",
+          "name": "takeId",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "selectAudioTake",
+        "summary": "选用对白配音版本",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShotAudio"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WritingApproval"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/episodes/{id}/timeline": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "getTimeline",
+        "summary": "读取时间轴",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineView"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "revisionId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": false
+          }
+        ]
+      },
+      "put": {
+        "operationId": "saveTimeline",
+        "summary": "保存时间轴修订",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimelineEdit"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/episodes/{id}/timeline/history": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "timelineHistory",
+        "summary": "查看时间轴修订历史",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelinePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false
+          }
+        ]
+      }
+    },
+    "/episodes/{id}/export": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "post": {
+        "operationId": "exportEpisode",
+        "summary": "导出成片",
+        "responses": {
+          "202": {
+            "description": "已接受",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Accepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true
+          }
+        ]
+      }
+    },
+    "/episodes/{id}/exports": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "required": true
+        }
+      ],
+      "get": {
+        "operationId": "listExports",
+        "summary": "查看分集导出结果",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "参数、版本冲突、资源或引擎错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2615,6 +3569,36 @@
           },
           "height": {
             "type": "integer"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frameCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2624,7 +3608,10 @@
           "mime",
           "sizeBytes",
           "width",
-          "height"
+          "height",
+          "durationMs",
+          "frameCount",
+          "fps"
         ],
         "additionalProperties": false
       },
@@ -2898,6 +3885,59 @@
           },
           "estimatedVramMb": {
             "type": "integer"
+          },
+          "firstFrame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrameBinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastFrame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrameBinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frameSize": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "width": {
+                    "type": "integer"
+                  },
+                  "height": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "width",
+                  "height"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referenceImage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FrameBinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3120,6 +4160,139 @@
                 }
               ]
             }
+          },
+          "boardId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "firstFrame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Media"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastFrame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Media"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referenceVersionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referenceFrame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Media"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetWidth": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "targetHeight": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plannedFrameCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "speech": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpeechCall"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "speechOrigin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpeechOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "export": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timelineRevisionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3134,7 +4307,20 @@
           "prompt",
           "parentAssetVersionId",
           "shotRevisionId",
-          "referenceDefaults"
+          "referenceDefaults",
+          "boardId",
+          "firstFrame",
+          "lastFrame",
+          "referenceVersionId",
+          "referenceFrame",
+          "targetWidth",
+          "targetHeight",
+          "plannedFrameCount",
+          "speech",
+          "speechOrigin",
+          "export",
+          "timelineRevisionId",
+          "resolution"
         ],
         "additionalProperties": false
       },
@@ -3252,6 +4438,9 @@
           },
           "resourceSamples": {
             "type": "integer"
+          },
+          "submitStarted": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -3267,7 +4456,8 @@
           "nodeProgress",
           "peakVramBytes",
           "peakRamBytes",
-          "resourceSamples"
+          "resourceSamples",
+          "submitStarted"
         ],
         "additionalProperties": false
       },
@@ -3337,7 +4527,10 @@
               "ASSET_EXTRACT",
               "SHOT_PLAN",
               "SHOT_REGENERATE",
-              "KEYFRAME"
+              "KEYFRAME",
+              "SHOT_RENDER",
+              "SHOT_AUDIO",
+              "EPISODE_EXPORT"
             ]
           },
           "targetId": {
@@ -4423,6 +5616,31 @@
             "items": {
               "$ref": "#/components/schemas/Media"
             }
+          },
+          "approvedPreviewId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "approvedLastFrameId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "frameReviewRevision": {
+            "type": "integer"
           }
         },
         "required": [
@@ -4437,7 +5655,10 @@
           "action",
           "durationMs",
           "references",
-          "previews"
+          "previews",
+          "approvedPreviewId",
+          "approvedLastFrameId",
+          "frameReviewRevision"
         ],
         "additionalProperties": false
       },
@@ -4766,6 +5987,1074 @@
           "id",
           "scriptRevisionId",
           "assets"
+        ],
+        "additionalProperties": false
+      },
+      "FrameBinding": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "input": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "input"
+        ],
+        "additionalProperties": false
+      },
+      "FrameApproval": {
+        "type": "object",
+        "properties": {
+          "shotRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "first",
+              "last"
+            ],
+            "default": "first"
+          }
+        },
+        "required": [
+          "shotRevisionId",
+          "expectedRevision"
+        ],
+        "additionalProperties": false
+      },
+      "RenderShotInput": {
+        "type": "object",
+        "properties": {
+          "shotRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstFrameId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastFrameId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "referenceVersionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "shotRevisionId"
+        ],
+        "additionalProperties": false
+      },
+      "ShotRenderRequest": {
+        "type": "object",
+        "properties": {
+          "shotRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstFrameId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastFrameId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflowVersion": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "referenceVersionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "shotRevisionId",
+          "workflowId",
+          "workflowVersion"
+        ],
+        "additionalProperties": false
+      },
+      "BatchRenderRequest": {
+        "type": "object",
+        "properties": {
+          "boardId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "workflowVersion": {
+            "type": "string"
+          },
+          "shots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenderShotInput"
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "boardId",
+          "workflowId",
+          "workflowVersion",
+          "shots"
+        ],
+        "additionalProperties": false
+      },
+      "BatchAccepted": {
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "batchId",
+          "taskIds"
+        ],
+        "additionalProperties": false
+      },
+      "RenderVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shotRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "firstFrameId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastFrameId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "media": {
+            "$ref": "#/components/schemas/Media"
+          },
+          "approvalStatus": {
+            "type": "string"
+          },
+          "reviewRevision": {
+            "type": "integer"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "referenceVersionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "shotId",
+          "shotRevisionId",
+          "revision",
+          "firstFrameId",
+          "lastFrameId",
+          "taskId",
+          "media",
+          "approvalStatus",
+          "reviewRevision",
+          "stale",
+          "createdAt",
+          "referenceVersionId"
+        ],
+        "additionalProperties": false
+      },
+      "RenderPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RenderVersion"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "TtsVoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "modelVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "该音色绑定的模型版本。省略或为 null 时使用 TtsInfo.version。"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "TtsInfo": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "device": {
+            "type": "string"
+          },
+          "voices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TtsVoice"
+            }
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "version",
+          "device",
+          "voices",
+          "available",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "ExportCapability": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "available",
+          "version",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "VoiceEdit": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "voiceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "voiceId"
+        ],
+        "additionalProperties": false
+      },
+      "VoiceBinding": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "characterKey": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "voiceId": {
+            "type": "string"
+          },
+          "voiceName": {
+            "type": "string"
+          },
+          "engineId": {
+            "type": "string"
+          },
+          "engineVersion": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "characterKey",
+          "revision",
+          "voiceId",
+          "voiceName",
+          "engineId",
+          "engineVersion",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "SpeechRequest": {
+        "type": "object",
+        "properties": {
+          "shotRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineOrdinal": {
+            "type": "integer"
+          },
+          "voiceBindingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "speed": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "shotRevisionId",
+          "lineOrdinal",
+          "voiceBindingId"
+        ],
+        "additionalProperties": false
+      },
+      "SpeechCall": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "voiceId": {
+            "type": "string"
+          },
+          "speed": {
+            "type": "number"
+          },
+          "modelVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "voiceId",
+          "speed"
+        ],
+        "additionalProperties": false
+      },
+      "SpeechOrigin": {
+        "type": "object",
+        "properties": {
+          "scriptRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineOrdinal": {
+            "type": "integer"
+          },
+          "speaker": {
+            "type": "string"
+          },
+          "voiceBindingId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "scriptRevisionId",
+          "lineOrdinal",
+          "speaker",
+          "voiceBindingId"
+        ],
+        "additionalProperties": false
+      },
+      "AudioTake": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "voiceBindingId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "media": {
+            "$ref": "#/components/schemas/Media"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "voiceBindingId",
+          "taskId",
+          "media",
+          "stale",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "AudioLine": {
+        "type": "object",
+        "properties": {
+          "ordinal": {
+            "type": "integer"
+          },
+          "speaker": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "emotion": {
+            "type": "string"
+          },
+          "selectedTakeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewRevision": {
+            "type": "integer"
+          },
+          "takes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioTake"
+            }
+          }
+        },
+        "required": [
+          "ordinal",
+          "speaker",
+          "text",
+          "emotion",
+          "selectedTakeId",
+          "reviewRevision",
+          "takes"
+        ],
+        "additionalProperties": false
+      },
+      "ShotAudio": {
+        "type": "object",
+        "properties": {
+          "shotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shotRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "selectedDurationMs": {
+            "type": "integer"
+          },
+          "overrunMs": {
+            "type": "integer"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AudioLine"
+            }
+          }
+        },
+        "required": [
+          "shotId",
+          "shotRevisionId",
+          "durationMs",
+          "selectedDurationMs",
+          "overrunMs",
+          "lines"
+        ],
+        "additionalProperties": false
+      },
+      "Caption": {
+        "type": "object",
+        "properties": {
+          "startMs": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "startMs",
+          "durationMs",
+          "text"
+        ],
+        "additionalProperties": false
+      },
+      "TimelineDialogue": {
+        "type": "object",
+        "properties": {
+          "takeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startMs": {
+            "type": "integer"
+          },
+          "gain": {
+            "type": "number"
+          },
+          "subtitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "takeId"
+        ],
+        "additionalProperties": false
+      },
+      "TimelineClip": {
+        "type": "object",
+        "properties": {
+          "shotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "renderVersionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceInMs": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "originalGain": {
+            "type": "number"
+          },
+          "dialogues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineDialogue"
+            }
+          },
+          "captions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Caption"
+            }
+          }
+        },
+        "required": [
+          "shotId",
+          "renderVersionId",
+          "sourceInMs",
+          "durationMs"
+        ],
+        "additionalProperties": false
+      },
+      "TimelineEdit": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer"
+          },
+          "boardId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clips": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineClip"
+            }
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "boardId",
+          "clips"
+        ],
+        "additionalProperties": false
+      },
+      "TimelineVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "episodeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "boardId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "aspectRatio": {
+            "type": "string"
+          },
+          "fps": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "clips": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineClip"
+            }
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "episodeId",
+          "boardId",
+          "revision",
+          "aspectRatio",
+          "fps",
+          "durationMs",
+          "clips",
+          "stale",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "TimelineView": {
+        "type": "object",
+        "properties": {
+          "episodeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimelineVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "episodeId",
+          "current"
+        ],
+        "additionalProperties": false
+      },
+      "ExportRequest": {
+        "type": "object",
+        "properties": {
+          "timelineRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "480p",
+              "1080p"
+            ]
+          }
+        },
+        "required": [
+          "timelineRevisionId"
+        ],
+        "additionalProperties": false
+      },
+      "ExportVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "timelineRevisionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "480p",
+              "1080p"
+            ]
+          },
+          "media": {
+            "$ref": "#/components/schemas/Media"
+          },
+          "createdAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "timelineRevisionId",
+          "taskId",
+          "resolution",
+          "media",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "ExportDialogue": {
+        "type": "object",
+        "properties": {
+          "audio": {
+            "$ref": "#/components/schemas/Media"
+          },
+          "startMs": {
+            "type": "integer"
+          },
+          "gain": {
+            "type": "number"
+          },
+          "subtitle": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "audio",
+          "startMs",
+          "gain",
+          "subtitle"
+        ],
+        "additionalProperties": false
+      },
+      "ExportClip": {
+        "type": "object",
+        "properties": {
+          "video": {
+            "$ref": "#/components/schemas/Media"
+          },
+          "sourceInMs": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "originalGain": {
+            "type": "number"
+          },
+          "dialogues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportDialogue"
+            }
+          },
+          "captions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Caption"
+            }
+          }
+        },
+        "required": [
+          "video",
+          "sourceInMs",
+          "durationMs",
+          "originalGain",
+          "dialogues",
+          "captions"
+        ],
+        "additionalProperties": false
+      },
+      "ExportPlan": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "fps": {
+            "type": "integer"
+          },
+          "clips": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportClip"
+            }
+          }
+        },
+        "required": [
+          "width",
+          "height",
+          "fps",
+          "clips"
+        ],
+        "additionalProperties": false
+      },
+      "TimelinePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineVersion"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "ExportPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExportVersion"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ],
         "additionalProperties": false
       }

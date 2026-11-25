@@ -6,7 +6,9 @@ import java.sql.Connection
 import java.sql.ResultSet
 
 internal fun ResultSet.toMedia() = Media(getString("file_id"), getString("relative_path"), getString("sha256"),
-    getString("mime"), getLong("size_bytes"), getInt("width"), getInt("height"))
+    getString("mime"), getLong("size_bytes"), getInt("width"), getInt("height"),
+    getLong("duration_ms").takeUnless { wasNull() }, getLong("frame_count").takeUnless { wasNull() },
+    getDouble("fps").takeUnless { wasNull() })
 private fun ResultSet.toProject() = Project(getString("id"), getString("title"), getString("genre"),
     getString("style"), getString("aspect_ratio"), getString("status"), getInt("revision"), getLong("created_at"))
 internal fun Connection.getProject(id: String) = rows("SELECT * FROM projects WHERE id=?", id) { toProject() }

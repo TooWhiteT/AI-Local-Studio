@@ -37,7 +37,7 @@
 ## 示例
 POST /api/v1/shots/{id}/render，Header: Idempotency-Key: <uuid>
 ```json
-{"shotRevisionId":"rev-1","workflowId":"h3-i2v","workflowVersion":"1.0.0","references":[{"assetVersionId":"asset-v1","role":"first_frame"}],"parameters":{"durationMs":5000,"resolution":"480p","seed":12345}}
+{"shotRevisionId":"<镜头修订 UUID>","workflowId":"<已注册模板 UUID>","workflowVersion":"1.0.0","firstFrameId":"<已审核预览图文件 UUID>","parameters":{"durationMs":5000,"resolution":"480p","seed":12345}}
 ```
 示例ID为占位，实际使用UUID。后端校验模板能力、版本、审批、资源限制，计算合法帧数。返回202：{"taskId":"...","status":"PENDING"}。相同幂等键与相同请求返回原任务；不同请求返回409。编辑请求带expectedRevision，冲突返回409。404不存在，422业务校验失败，503引擎不可用（或按策略等待）。
 
@@ -98,3 +98,33 @@ POST /prompt（API图、client_id）；WS /ws?clientId=...；GET /history/{promp
 拆镜、编辑、重排、单镜重做和分镜审核均传 expectedRevision，首次拆镜填 0。生成接口返回 202 并接受 Idempotency-Key。文字任务的 writingResultId 对应提取记录或分镜版本。预览图任务返回媒体，snapshot 固定 shotRevisionId 和 assetVersionIds。历史图片沿用 /media/{id} 读取。[完整契约](openapi.json)
 
 镜头参考里的 isCurrent 描述该图是否为资产的当前默认图，needsReview 描述其绑定之后的默认图变化。PATCH 省略 assetVersionIds 会原样保留这些绑定，显式提交版本列表表示选用该组合，可包括已审核的历史候选。
+
+## M3 镜头渲染
+
+| 方法与路径 | 用途 |
+| --- | --- |
+| POST /shots/{id}/keyframes/{fileId}/approve | 选定本镜头修订的一张预览图。正文包含 shotRevisionId、expectedRevision 和可选 role（first 或 last），修订号取 Shot.frameReviewRevision |
+| POST /shots/{id}/render | 提交一个镜头，返回 202 和 taskId |
+| POST /episodes/{id}/render | 提交 boardId、workflowId、workflowVersion、shots 和可选 parameters，返回 202、batchId 和有序 taskIds |
+| GET /shots/{id}/renders | 分页读取已生成的视频版本，可按 shotRevisionId 过滤 |
+| POST /shots/{id}/renders/{versionId}/approve 或 /reject | 用该视频的 reviewRevision 作为 expectedRevision 审核或弃用 |
+
+两个渲染入口都要求 Idempotency-Key。单镜头及每个批量项按能力提交固定的 shotRevisionId 和输入 ID。首帧模板用 firstFrameId，首尾帧模板同时用 lastFrameId，参考图模板用镜头上已绑定并审核的 referenceVersionId。批量按序原子入队，每镜头随后独立执行、取消、失败或重试。任务种类为 `SHOT_RENDER`，沿用任务详情、取消、重试、SSE 与媒体 Range 接口。现有 H3 模板使用 480p 竖屏，接受 3 至 5 秒的目标时长。模板为模型计算合法帧数，Media 的 durationMs、frameCount、fps 来自实际文件。[OpenAPI 契约](openapi.json)
+
+## M4 配音与剪辑
+
+| 方法与路径 | 用途 |
+| --- | --- |
+| GET /engines/tts、GET /engines/media | 查询实际可用音色、设备和服务版本，以及 FFmpeg / FFprobe 可用性 |
+| GET /projects/{id}/voices、PUT /projects/{id}/voices/{characterKey} | 查询或绑定角色音色。写入传 voiceId 和 expectedRevision，首次使用 0 |
+| GET /shots/{id}/audio | 返回所选镜头修订的场内对白、候选 WAV、选用修订、实际累计时长和超时毫秒数，可传 shotRevisionId |
+| POST /shots/{id}/audio/generate | 提交 shotRevisionId、从 1 开始的 lineOrdinal、voiceBindingId 和 speed（0.5 到 2） |
+| POST /shots/{id}/audio/{takeId}/select | 用该行的 reviewRevision 作为 expectedRevision 选用录音 |
+| GET、PUT /episodes/{id}/timeline | 查询当前或指定 revisionId。保存时传 expectedRevision、boardId 和有序 clips |
+| GET /episodes/{id}/timeline/history | 分页查询该集时间轴历史 |
+| POST /episodes/{id}/export | 用 timelineRevisionId 和 resolution（480p 或 1080p）创建导出任务 |
+| GET /episodes/{id}/exports | 分页查询成片、任务 ID、时间轴修订和媒体元数据 |
+
+配音服务可在每个音色返回可选的 `modelVersion`。角色绑定和任务快照固定所选音色的模型版本，省略或返回 null 时使用服务的 `version`。服务增加其他模型后，仍提供原音色版本的任务可以正常继续。
+
+两个任务提交入口均需 UUID 格式的 Idempotency-Key，成功入队返回 HTTP 202。各片段使用毫秒设置源视频入点和保留时长，原声音量和对白音量取 0 至 2。对白输入引用已选 takeId，并独立设置片段内开始时间和字幕文本。手工字幕具有独立的开始时间和时长。WAV 和 MP4 共用 /media/{id}，支持 HTTP Range。字段和分页规则见 [OpenAPI 契约](openapi.json)。

@@ -1,0 +1,81 @@
+{
+  "id": "minimax-h3-r2v",
+  "version": "1.0.0",
+  "title": "MiniMax H3 · 参考图生成视频 · 480p",
+  "mode": "comfy",
+  "capabilities": [
+    "reference-to-video"
+  ],
+  "parameters": [
+    {
+      "name": "prompt",
+      "label": "镜头描述",
+      "type": "STRING",
+      "node": "138",
+      "input": "value",
+      "default": "Use <Picture 1> for the identity and clothing of the character. In a quiet ferry terminal, the character turns to the window, holds a ticket and glances down. Medium close-up, natural light, fixed camera. Quiet distant water, no dialogue."
+    },
+    {
+      "name": "seed",
+      "label": "随机种子",
+      "type": "INT",
+      "node": "129",
+      "input": "noise_seed",
+      "default": 20261126,
+      "min": 0,
+      "max": 2147483647
+    },
+    {
+      "name": "durationSeconds",
+      "label": "目标秒数",
+      "type": "FLOAT",
+      "node": "132",
+      "input": "value",
+      "default": 5,
+      "min": 3,
+      "max": 5
+    }
+  ],
+  "outputs": [
+    {
+      "node": "92",
+      "field": "images"
+    }
+  ],
+  "models": [
+    {
+      "node": "127",
+      "input": "unet_name",
+      "name": "minimax_h3\\minimax_h3_ref2va_pruned_int8_convrot.safetensors"
+    },
+    {
+      "node": "128",
+      "input": "clip_name",
+      "name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+    },
+    {
+      "node": "119",
+      "input": "vae_name",
+      "name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    {
+      "node": "120",
+      "input": "vae_name",
+      "name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    {
+      "node": "145",
+      "input": "lora_name",
+      "name": "minimax_h3\\minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors"
+    }
+  ],
+  "estimatedVramMb": 0,
+  "frameSize": {
+    "width": 480,
+    "height": 864
+  },
+  "referenceImage": {
+    "node": "137",
+    "input": "image"
+  }
+}

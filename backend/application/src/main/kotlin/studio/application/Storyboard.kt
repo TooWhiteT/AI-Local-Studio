@@ -15,7 +15,8 @@ enum class BoardJob(val targetType: String, val folder: String) {
     val currentVersionId: String? = null, val needsReview: Boolean = false)
 @Serializable data class Shot(val id: String, val revisionId: String, val revision: Int, val sceneId: String,
     val sceneOrdinal: Int, val ordinal: Int, val framing: String, val camera: String, val action: String, val durationMs: Int,
-    val references: List<Reference>, val previews: List<Media>)
+    val references: List<Reference>, val previews: List<Media>, val approvedPreviewId: String? = null,
+    val approvedLastFrameId: String? = null, val frameReviewRevision: Int = 0)
 @Serializable data class Continuity(val wardrobe: String = "", val location: String = "", val injuries: String = "",
     val possessions: String = "", val knowledge: String = "")
 @Serializable data class CharacterState(val characterKey: String, val revision: Int, val before: Continuity, val after: Continuity)
@@ -35,6 +36,9 @@ enum class BoardJob(val targetType: String, val folder: String) {
 @Serializable data class Extraction(val id: String, val scriptRevisionId: String, val assets: List<ExtractedAsset>)
 
 interface Storyboards {
+    fun approveFrame(shot: String, file: String, review: FrameReview): Shot
+    fun renders(shot: String, revision: String?, window: Window): Page<RenderVersion>
+    fun reviewRender(shot: String, version: String, expectedRevision: Int, approve: Boolean): RenderVersion
     fun board(episode: String, version: String? = null): Board
     fun locate(shot: String, revision: String?): Board
     fun history(episode: String, window: Window): Page<BoardSummary>

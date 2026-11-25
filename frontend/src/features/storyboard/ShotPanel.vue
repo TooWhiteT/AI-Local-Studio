@@ -51,7 +51,7 @@ watch(
 )
 const flows = computed(() =>
   store.workflows.filter(
-    (w) => w.enabled && w.manifest.parameters.some((p) => p.name === 'prompt' && p.type === 'STRING'),
+    (w) => w.enabled && w.manifest.capabilities.includes('text-to-image') && w.manifest.parameters.some((p) => p.name === 'prompt' && p.type === 'STRING'),
   ),
 )
 watch(

@@ -1,0 +1,85 @@
+{
+  "workflow": "minimax-h3-i2v",
+  "version": "1.0.0",
+  "capability": "image-to-video",
+  "taskId": "263dffcf-1376-4f53-b6c7-67eb92f19e18",
+  "attemptId": "d52745a1-765c-4c72-99f4-9ccca331b076",
+  "promptId": "b2381ea7-7e44-443e-8e49-02fc4743235e",
+  "engine": {
+    "name": "ComfyUI",
+    "version": "0.46.0",
+    "gpu": "cuda:0 NVIDIA GeForce RTX 5090 : cudaMallocAsync",
+    "torch": "2.12.0+cu130"
+  },
+  "upstreamTemplate": {
+    "url": "https://github.com/Comfy-Org/workflow_templates/blob/main/templates/video_minimax_h3_i2v.json",
+    "sha256": "2a687889e1abe0b29ca29cc1d0f640db8ab07801ae7ed5a5def4759755bcc08c"
+  },
+  "firstFrame": {
+    "source": "《最后一张船票》分镜 V8 镜头 1",
+    "sourcePngSha256": "b11f0b2db32363c78fe82849c41e6aa2033b1308eb5b5b4f281ac2fa9c0d2e9b",
+    "cropFrom1024x1024": {
+      "x": 0,
+      "y": 0,
+      "width": 570,
+      "height": 1024
+    },
+    "input": "studio_h3_ferry_first_20261125.png"
+  },
+  "comfyHistory": {
+    "completed": true,
+    "status": "success",
+    "executionTimeSeconds": 36.985,
+    "startedAt": "2026-11-25T23:15:57.624+08:00",
+    "cachedNodes": [],
+    "outputNode": "92",
+    "output": {
+      "filename": "LocalAIStudio_H3_Ferry_00001_.mp4",
+      "subfolder": "video",
+      "type": "output",
+      "metadata": {
+        "kind": "video",
+        "width": 480,
+        "height": 864,
+        "duration": 5.166666666666667,
+        "fps": 24.0,
+        "frame_count": 124
+      }
+    }
+  },
+  "systemStatsSamples": {
+    "method": "ComfyUI system_stats，采样仅覆盖后半段，包括其他进程；数值为采样观测，不能用作模型的精确峰值或调度预算。",
+    "samples": 3,
+    "maxObservedTotalGpuUsedBytes": 32333425362,
+    "maxObservedHostRamUsedBytes": 23318966272
+  },
+  "media": {
+    "width": 480,
+    "height": 864,
+    "fps": 24,
+    "videoCodec": "h264",
+    "audioCodec": "aac",
+    "audioChannels": 2,
+    "audioSampleRate": 32000,
+    "decodedFrames": 124,
+    "uniqueDecodedFrames": 124,
+    "durationSeconds": 5.167,
+    "bytes": 682833
+  },
+  "canvasVerification": {
+    "path": "workflows/LocalAIStudio_H3_Ferry_I2V_480p_v1.json",
+    "created": true,
+    "canvasBytes": 51697,
+    "localSha256": "2b3011ca365073498e5de525d28bd47a08d7f7efc3feac705919bfd56d349df7",
+    "remoteSha256": "2b3011ca365073498e5de525d28bd47a08d7f7efc3feac705919bfd56d349df7",
+    "roundtripNodes": 24,
+    "semanticDifferences": 0
+  },
+  "apiMatchesSuccessfulHistory": true,
+  "files": {
+    "workflow-api.json": "928d8a6dab48e63e58a89d38dd57a2618638a8a16f05ea8bec76774933b3a8fc",
+    "workflow-comfyui.json": "2b3011ca365073498e5de525d28bd47a08d7f7efc3feac705919bfd56d349df7",
+    "studio_h3_ferry_first_20261125.png": "c60ea796cdd7e7414c376963243363b37743e4385ce8c629623eb67c03fd9475",
+    "sample.mp4": "705cfd70416eb2f9943c173ef8be5ab9ec08b66e75d8b859cde73ebd14853d96"
+  }
+}

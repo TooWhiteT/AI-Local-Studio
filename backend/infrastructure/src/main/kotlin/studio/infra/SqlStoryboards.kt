@@ -74,16 +74,17 @@ internal fun Connection.loadBoard(episode: String, versionId: String? = null): B
         .singleOrNull() ?: missing("该剧集没有此分镜版本")
     if (v==null) return Board(episode,null,false,emptyList(),emptyList())
     val src=source(v.scriptRevisionId)
-    val shots=rows("""SELECT r.*,sh.scene_id,s.ordinal AS scene_ordinal,b.ordinal AS position
+    val shots=rows("""SELECT r.*,sh.scene_id,s.ordinal AS scene_ordinal,b.ordinal AS position,fr.first_file_id,fr.last_file_id,fr.review_revision
         FROM storyboard_shots b JOIN shot_revisions r ON r.id=b.shot_revision_id JOIN shots sh ON sh.id=r.shot_id
-        JOIN scenes s ON s.id=sh.scene_id WHERE b.board_id=? ORDER BY b.ordinal""",v.id) {
+        JOIN scenes s ON s.id=sh.scene_id LEFT JOIN shot_frame_reviews fr ON fr.shot_revision_id=r.id WHERE b.board_id=? ORDER BY b.ordinal""",v.id) {
         val rev=getString("id")
         val refs=rows("""SELECT r.*,sa.default_version_id FROM ($referenceSql) r JOIN shot_assets sa ON sa.asset_version_id=r.version_id
             WHERE sa.shot_revision_id=? ORDER BY sa.ordinal""",rev) { reference(bound=true) }
         val previews=rows("""SELECT p.file_id,f.* FROM shot_previews p JOIN media_files f ON f.id=p.file_id WHERE p.shot_revision_id=?
             ORDER BY p.rowid DESC""",rev) { toMedia() }
         Shot(getString("shot_id"),rev,getInt("revision"),getString("scene_id"),getInt("scene_ordinal"),getInt("position"),
-            getString("framing"),getString("camera"),getString("action"),getInt("duration_ms"),refs,previews)
+            getString("framing"),getString("camera"),getString("action"),getInt("duration_ms"),refs,previews,
+            getString("first_file_id"),getString("last_file_id"),getInt("review_revision"))
     }
     val live=boardScenes(src)
     val frozen=rows("SELECT scene_id,states_json FROM storyboard_states WHERE board_id=?",v.id) {
@@ -117,6 +118,10 @@ internal fun Connection.publishBoard(src: ScriptSource, prior: Int, entries: Lis
 internal fun Board.replaceShot(shot: ShotVersion) = shots.map { if (it.id==shot.shot) shot else ShotVersion(it.id,it.revisionId) }
 
 class SqlStoryboards(private val db: StudioDb): Storyboards {
+    override fun approveFrame(shot: String,file: String,review: FrameReview) = db.tx { selectFrame(shot,file,review) }
+    override fun renders(shot: String,revision: String?,window: Window) = db.tx { listRenders(shot,revision,window) }
+    override fun reviewRender(shot: String,version: String,expectedRevision: Int,approve: Boolean) =
+        db.tx { decideRender(shot,version,expectedRevision,approve) }
     override fun board(episode: String,version: String?) = db.tx { loadBoard(episode,version) }
     override fun locate(shot: String,revision: String?) = db.tx {
         val episode=episodeForShot(shot)

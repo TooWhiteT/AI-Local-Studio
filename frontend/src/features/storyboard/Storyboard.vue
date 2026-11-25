@@ -263,6 +263,7 @@ watch(
           <router-link to="/projects">项目库</router-link><span class="slash">/</span>{{ project?.title }}
         </p>
       </div>
+      <router-link v-if="board?.version" :to="{ path: '/projects/' + projectId + '/render', query: { episode, shot: selected, board: board.version.id } }">打开视频渲染</router-link>
       <n-select
         aria-label="分镜剧集"
         class="episode-select"

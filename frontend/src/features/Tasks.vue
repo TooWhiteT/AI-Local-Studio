@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { NButton, NSelect, NDrawer, NDrawerContent, NPopconfirm, useMessage } from 'naive-ui'
 import {
@@ -18,6 +18,7 @@ import {
 import { useStudio } from '../stores/studio'
 import StatusTag from '../components/StatusTag.vue'
 import BlankPanel from '../components/BlankPanel.vue'
+import ExportPlayer from './edit/ExportPlayer.vue'
 const store = useStudio(),
   route = useRoute(),
   router = useRouter(),
@@ -25,7 +26,16 @@ const store = useStudio(),
 const project = ref<string | null>(null),
   status = ref<Model['Status'] | null>(null),
   busy = ref('')
-const selected = computed(() => store.tasks.find((t) => t.id === route.query.task))
+const missingTask=ref<Task>()
+const cachedTask=computed(()=>store.tasks.find(t=>t.id===route.query.task))
+const selected=computed(()=>cachedTask.value ?? (missingTask.value?.id===route.query.task?missingTask.value:undefined))
+watch([()=>route.query.task,cachedTask,()=>store.assetsChanged],async([id,cached])=>{
+  if(typeof id!=='string' || cached)return
+  try {
+    const item=value(await api.GET('/tasks/{id}',{params:pathId(id)}))
+    if(id===route.query.task)missingTask.value=item
+  }catch(e){if(id===route.query.task)store.report(e)}
+},{immediate:true})
 const rows = computed(() =>
   store.tasks.filter(
     (t) => (!project.value || t.projectId === project.value) && (!status.value || t.status === status.value),
@@ -34,7 +44,9 @@ const rows = computed(() =>
 const projectName = (id: string) => store.projects.find((p) => p.id === id)?.title ?? id.slice(0, 8)
 const title = (t: Task) =>
   t.kind === 'IMAGE' ? (store.workflows.find((w) => w.id === t.snapshot.workflowId)?.manifest.title ?? '图片生成') :
-    ({ OUTLINE: '故事大纲', EPISODE_PLAN: '分集规划', SCRIPT: '分集剧本', ASSET_EXTRACT: '提取资产', SHOT_PLAN: '分镜计划', SHOT_REGENERATE: '单镜头重做', KEYFRAME: '分镜预览图' }[t.kind])
+    ({ OUTLINE: '故事大纲', EPISODE_PLAN: '分集规划', SCRIPT: '分集剧本', ASSET_EXTRACT: '提取资产', SHOT_PLAN: '分镜计划', SHOT_REGENERATE: '单镜头重做', KEYFRAME: '分镜预览图', SHOT_RENDER: '镜头视频渲染', SHOT_AUDIO: '对白配音', EPISODE_EXPORT: '成片导出' }[t.kind])
+const manualKinds = new Set<Task['kind']>(['IMAGE','KEYFRAME','SHOT_RENDER','OUTLINE','EPISODE_PLAN','SCRIPT','ASSET_EXTRACT','SHOT_PLAN','SHOT_REGENERATE'])
+const manualReconcile = computed(() => selected.value?.status==='UNKNOWN' && manualKinds.has(selected.value.kind))
 const statuses = Object.entries(statusText).map(([value, label]) => ({ label, value }))
 async function action(t: Task, which: 'retry' | 'cancel' | 'reconcile') {
   if (busy.value) return
@@ -119,7 +131,7 @@ function select(id?: string) {
         <p class="mono detail-id">{{ selected.id }}</p>
         <div class="detail-grid">
           <span>项目</span><strong>{{ projectName(selected.projectId) }}</strong
-          ><span>{{ selected.snapshot.workflowId ? '模板版本' : '提示词版本' }}</span><strong>{{ selected.snapshot.workflowVersion }}</strong
+          ><span>{{ selected.kind === 'SHOT_AUDIO' ? '配音版本' : selected.kind === 'EPISODE_EXPORT' ? '合成版本' : selected.snapshot.workflowId ? '模板版本' : '提示词版本' }}</span><strong>{{ selected.snapshot.workflowVersion }}</strong
           ><span>引擎版本</span><strong>{{ selected.snapshot.engineVersion }}</strong
           ><span>创建时间</span><strong>{{ dateText(selected.createdAt) }}</strong>
         </div>
@@ -127,6 +139,16 @@ function select(id?: string) {
         <router-link v-if="['OUTLINE','EPISODE_PLAN','SCRIPT'].includes(selected.kind)" :to="{path:'/projects/'+selected.projectId+'/writing',query:{task:selected.id}}">打开对应稿件</router-link>
         <router-link v-if="selected.kind==='ASSET_EXTRACT'" :to="'/projects/'+selected.projectId+'/assets'">查看项目资产</router-link>
         <router-link v-if="['SHOT_PLAN','SHOT_REGENERATE','KEYFRAME'].includes(selected.kind)" :to="{path:'/projects/'+selected.projectId+'/storyboard',query:{task:selected.id}}">查看对应分镜</router-link>
+        <router-link v-if="selected.kind === 'SHOT_RENDER'" :to="{ path: '/projects/' + selected.projectId + '/render', query: { shot: selected.targetId, revision: selected.snapshot.shotRevisionId ?? undefined } }">查看镜头视频</router-link>
+        <router-link v-if="selected.kind === 'SHOT_AUDIO'" :to="{path:'/projects/'+selected.projectId+'/audio',query:{shot:selected.targetId,revision:selected.snapshot.shotRevisionId ?? undefined}}">打开镜头配音</router-link>
+        <router-link v-if="selected.kind === 'EPISODE_EXPORT'" :to="{path:'/projects/'+selected.projectId+'/edit',query:{episode:selected.targetId,timeline:selected.snapshot.timelineRevisionId ?? undefined,task:selected.id}}">查看成片导出</router-link>
+        <div v-if="selected.kind === 'SHOT_RENDER'" class="detail-grid">
+          <template v-if="selected.snapshot.firstFrame"><span>首帧</span><a :href="mediaUrl(selected.snapshot.firstFrame.id)" target="_blank" rel="noopener">查看输入首帧</a></template>
+          <template v-if="selected.snapshot.lastFrame"><span>尾帧</span><a :href="mediaUrl(selected.snapshot.lastFrame.id)" target="_blank" rel="noopener">查看输入尾帧</a></template>
+          <template v-if="selected.snapshot.referenceFrame"><span>参考资产版本</span><a :href="mediaUrl(selected.snapshot.referenceFrame.id)" target="_blank" rel="noopener">{{ selected.snapshot.referenceVersionId }}</a></template>
+          <template v-if="selected.snapshot.targetWidth && selected.snapshot.targetHeight"><span>目标画布</span><strong>{{ selected.snapshot.targetWidth }} × {{ selected.snapshot.targetHeight }}</strong></template>
+          <template v-if="selected.snapshot.plannedFrameCount"><span>计划帧数</span><strong>{{ selected.snapshot.plannedFrameCount }}</strong></template>
+        </div>
         <pre>{{ JSON.stringify(selected.snapshot.parameters, null, 2) }}</pre>
         <h3>尝试记录</h3>
         <div v-for="a in selected.attempts" :key="a.id" class="attempt">
@@ -152,14 +174,16 @@ function select(id?: string) {
         </div>
         <div v-if="selected.results.length">
           <h3>生成结果</h3>
-          <img
-            v-for="m in selected.results"
-            :key="m.id"
-            class="preview-image"
-            :src="mediaUrl(m.id)"
-            alt="生成结果"
-          />
+          <template v-for="m in selected.results" :key="m.id">
+            <export-player v-if="selected.kind==='EPISODE_EXPORT' && m.mime.startsWith('video/')" class="preview-image" :media="m" :task-id="selected.id" :plan="selected.snapshot.export" label="任务输出视频" />
+            <video v-else-if="m.mime.startsWith('video/')" class="preview-image" :src="mediaUrl(m.id)" controls playsinline preload="metadata" aria-label="任务输出视频" />
+            <audio v-else-if="m.mime.startsWith('audio/')" :src="mediaUrl(m.id)" controls preload="metadata" aria-label="任务输出音频" />
+            <img v-else class="preview-image" :src="mediaUrl(m.id)" alt="生成结果" />
+          </template>
         </div>
+        <p v-if="selected.status === 'UNKNOWN' && !manualReconcile" class="notice">
+          {{ selected.kind === 'SHOT_AUDIO' ? '配音服务正在核对原尝试。请求取消后，工作台会等待服务确认停止。' : '工作台正在核对原导出进程和结果。' }}
+        </p>
         <template #footer
           ><n-button
             v-if="selected.status === 'FAILED'"
@@ -169,14 +193,14 @@ function select(id?: string) {
             >重试任务</n-button
           >
           <n-button
-            v-else-if="!terminal(selected) && selected.status !== 'UNKNOWN'"
+            v-else-if="!terminal(selected) && !manualReconcile"
             :disabled="selected.cancelRequested"
             @click="action(selected, 'cancel')"
             >请求取消</n-button
           >
-          <n-popconfirm v-if="selected.status === 'UNKNOWN'" @positive-click="action(selected, 'reconcile')"
+          <n-popconfirm v-if="manualReconcile" @positive-click="action(selected, 'reconcile')"
             ><template #trigger><n-button>人工核对</n-button></template
-            >已在 ComfyUI 核对队列及历史，确认该尝试已停止且没有结果？</n-popconfirm
+            >{{ selected.snapshot.workflowId ? '已在 ComfyUI 核对队列及历史，确认该尝试已停止且没有结果？' : '已核对编剧服务，确认该尝试已停止且没有结果？' }}</n-popconfirm
           >
         </template></n-drawer-content
       ></n-drawer

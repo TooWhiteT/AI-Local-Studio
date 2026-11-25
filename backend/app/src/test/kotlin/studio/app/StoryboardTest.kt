@@ -7,23 +7,24 @@ import studio.application.*
 import studio.core.*
 import studio.domain.TaskStatus.*
 
-class StoryboardTest {
-    private fun doc(raw: String)=json.parseToJsonElement(raw).jsonObject
-    private fun Rig.script(): Pair<String,WritingRevision> {
-        val story=studio.writing.save(WritingKind.OUTLINE,project.id,WritingEdit(0,doc("""{"title":"来信","logline":"一封信","world":"山城",
-            "characters":[{"key":"lin","name":"林青","description":"站员"}],"locations":[{"key":"post","name":"邮局","description":"旧柜台"}],"beats":["发现退信"]}""")))
-        studio.writing.approve(WritingKind.OUTLINE,project.id,story.id,1)
-        val plan=studio.writing.save(WritingKind.EPISODE_PLAN,project.id,WritingEdit(0,doc("""{"episodes":[{"title":"来信","summary":"找到信件","targetDurationMs":60000}]}"""),story.id))
-        val episode=studio.writing.episodes(project.id).episodes.single().id
-        val scene=doc("""{"locationKey":"post","characters":["lin"],"action":"展开信件","durationMs":30000,"dialogues":[{"speaker":"lin","text":"到了。","emotion":"平静"}]}""")
-        val script=studio.writing.save(WritingKind.SCRIPT,episode,WritingEdit(0,buildJsonObject {
-            put("title","来信");put("scenes",JsonArray(listOf(scene,scene)))
-        },story.id,plan.id))
-        return episode to script
-    }
-    private fun Rig.queue(kind: BoardJob,target: String,req: BoardRequest,key: String=uid()) =
-        studio.tasks.enqueueBoard(kind,target,key,req,studio.writer!!.identity,"mock-writer-v1","mock-writer-v1",null).taskId
+private fun doc(raw: String)=json.parseToJsonElement(raw).jsonObject
+internal fun Rig.script(owner: Project = project): Pair<String,WritingRevision> {
+    val story=studio.writing.save(WritingKind.OUTLINE,owner.id,WritingEdit(0,doc("""{"title":"来信","logline":"一封信","world":"山城",
+        "characters":[{"key":"lin","name":"林青","description":"站员"}],"locations":[{"key":"post","name":"邮局","description":"旧柜台"}],"beats":["发现退信"]}""")))
+    studio.writing.approve(WritingKind.OUTLINE,owner.id,story.id,1)
+    val plan=studio.writing.save(WritingKind.EPISODE_PLAN,owner.id,WritingEdit(0,doc("""{"episodes":[{"title":"来信","summary":"找到信件","targetDurationMs":60000}]}"""),story.id))
+    val episode=studio.writing.episodes(owner.id).episodes.single().id
+    val scene=doc("""{"locationKey":"post","characters":["lin"],"action":"展开信件","durationMs":30000,"dialogues":[{"speaker":"lin","text":"到了。","emotion":"平静"}]}""")
+    val script=studio.writing.save(WritingKind.SCRIPT,episode,WritingEdit(0,buildJsonObject {
+        put("title","来信");put("scenes",JsonArray(listOf(scene,scene)))
+    },story.id,plan.id))
+    return episode to script
+}
+internal fun Rig.queue(kind: BoardJob,target: String,req: BoardRequest,key: String=uid()) =
+    studio.tasks.enqueueBoard(kind,target,key,req,studio.writer!!.identity,"mock-writer-v1","mock-writer-v1",null).taskId
 
+
+class StoryboardTest {
     @Test fun extractionDeduplicatesAndRequiresApprovedProjectScript()=runBlocking<Unit> {
         Rig().use { rig -> with(rig) {
             val (ep,s)=script(); val req=BoardRequest(s.id,1)

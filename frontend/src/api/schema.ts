@@ -765,6 +765,331 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/shots/{id}/render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 提交锁定镜头修订和已审核帧的视频任务 */
+        post: operations["renderShot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{id}/render": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 原子提交所选镜头的渲染批次 */
+        post: operations["renderEpisode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shots/{id}/keyframes/{fileId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                fileId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 选用镜头的首帧或尾帧 */
+        post: operations["approveRenderFrame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shots/{id}/renders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** 查询镜头视频版本及审核状态 */
+        get: operations["listShotRenders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shots/{id}/renders/{versionId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 审核通过镜头视频版本 */
+        post: operations["approveShotRender"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shots/{id}/renders/{versionId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 弃用镜头视频版本 */
+        post: operations["rejectShotRender"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engines/tts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取配音引擎和真实音色 */
+        get: operations["getTtsInfo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/engines/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取导出工具状态 */
+        get: operations["getExportCapability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** 查询角色音色 */
+        get: operations["listVoiceBindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}/voices/{characterKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                characterKey: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** 更新角色固定音色 */
+        put: operations["bindVoice"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shots/{id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** 查询镜头对白及配音版本 */
+        get: operations["shotAudio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shots/{id}/audio/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 提交单句配音任务 */
+        post: operations["generateSpeech"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shots/{id}/audio/{takeId}/select": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                takeId: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 选用对白配音版本 */
+        post: operations["selectAudioTake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{id}/timeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** 读取时间轴 */
+        get: operations["getTimeline"];
+        /** 保存时间轴修订 */
+        put: operations["saveTimeline"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{id}/timeline/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** 查看时间轴修订历史 */
+        get: operations["timelineHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 导出成片 */
+        post: operations["exportEpisode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/episodes/{id}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** 查看分集导出结果 */
+        get: operations["listExports"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -828,6 +1153,9 @@ export interface components {
             sizeBytes: number;
             width: number;
             height: number;
+            durationMs: number | null;
+            frameCount: number | null;
+            fps: number | null;
         };
         Version: {
             /** Format: uuid */
@@ -884,6 +1212,13 @@ export interface components {
                 name: string;
             }[];
             estimatedVramMb: number;
+            firstFrame?: components["schemas"]["FrameBinding"] | null;
+            lastFrame?: components["schemas"]["FrameBinding"] | null;
+            frameSize?: {
+                width: number;
+                height: number;
+            } | null;
+            referenceImage?: components["schemas"]["FrameBinding"] | null;
         };
         Workflow: {
             /** Format: uuid */
@@ -928,6 +1263,19 @@ export interface components {
             referenceDefaults: {
                 [key: string]: string | null;
             };
+            boardId: string | null;
+            firstFrame: components["schemas"]["Media"] | null;
+            lastFrame: components["schemas"]["Media"] | null;
+            referenceVersionId: string | null;
+            referenceFrame: components["schemas"]["Media"] | null;
+            targetWidth: number | null;
+            targetHeight: number | null;
+            plannedFrameCount: number | null;
+            speech: components["schemas"]["SpeechCall"] | null;
+            speechOrigin: components["schemas"]["SpeechOrigin"] | null;
+            export: components["schemas"]["ExportPlan"] | null;
+            timelineRevisionId: string | null;
+            resolution: string | null;
         };
         Problem: {
             code: string;
@@ -948,6 +1296,7 @@ export interface components {
             peakVramBytes: number | null;
             peakRamBytes: number | null;
             resourceSamples: number;
+            submitStarted: boolean;
         };
         Task: {
             /** Format: uuid */
@@ -964,7 +1313,7 @@ export interface components {
             results: components["schemas"]["Media"][];
             cancelRequested: boolean;
             /** @enum {string} */
-            kind: "IMAGE" | "OUTLINE" | "EPISODE_PLAN" | "SCRIPT" | "ASSET_EXTRACT" | "SHOT_PLAN" | "SHOT_REGENERATE" | "KEYFRAME";
+            kind: "IMAGE" | "OUTLINE" | "EPISODE_PLAN" | "SCRIPT" | "ASSET_EXTRACT" | "SHOT_PLAN" | "SHOT_REGENERATE" | "KEYFRAME" | "SHOT_RENDER" | "SHOT_AUDIO" | "EPISODE_EXPORT";
             /** Format: uuid */
             targetId: string;
             writingResultId: string | null;
@@ -1158,6 +1507,9 @@ export interface components {
             durationMs: number;
             references: components["schemas"]["Reference"][];
             previews: components["schemas"]["Media"][];
+            approvedPreviewId: string | null;
+            approvedLastFrameId: string | null;
+            frameReviewRevision: number;
         };
         Continuity: {
             wardrobe: string;
@@ -1242,6 +1594,263 @@ export interface components {
             /** Format: uuid */
             scriptRevisionId: string;
             assets: components["schemas"]["ExtractedAsset"][];
+        };
+        FrameBinding: {
+            node: string;
+            input: string;
+        };
+        FrameApproval: {
+            /** Format: uuid */
+            shotRevisionId: string;
+            expectedRevision: number;
+            /**
+             * @default first
+             * @enum {string}
+             */
+            role: "first" | "last";
+        };
+        RenderShotInput: {
+            /** Format: uuid */
+            shotRevisionId: string;
+            firstFrameId?: string | null;
+            lastFrameId?: string | null;
+            referenceVersionId?: string | null;
+        };
+        ShotRenderRequest: {
+            /** Format: uuid */
+            shotRevisionId: string;
+            firstFrameId?: string | null;
+            lastFrameId?: string | null;
+            /** Format: uuid */
+            workflowId: string;
+            workflowVersion: string;
+            parameters?: {
+                [key: string]: unknown;
+            };
+            referenceVersionId?: string | null;
+        };
+        BatchRenderRequest: {
+            /** Format: uuid */
+            boardId: string;
+            /** Format: uuid */
+            workflowId: string;
+            workflowVersion: string;
+            shots: components["schemas"]["RenderShotInput"][];
+            parameters?: {
+                [key: string]: unknown;
+            };
+        };
+        BatchAccepted: {
+            /** Format: uuid */
+            batchId: string;
+            taskIds: string[];
+        };
+        RenderVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            shotId: string;
+            /** Format: uuid */
+            shotRevisionId: string;
+            revision: number;
+            firstFrameId: string | null;
+            lastFrameId: string | null;
+            /** Format: uuid */
+            taskId: string;
+            media: components["schemas"]["Media"];
+            approvalStatus: string;
+            reviewRevision: number;
+            stale: boolean;
+            createdAt: number;
+            referenceVersionId: string | null;
+        };
+        RenderPage: {
+            items: components["schemas"]["RenderVersion"][];
+            nextCursor: string | null;
+        };
+        TtsVoice: {
+            id: string;
+            name: string;
+            /** @description 该音色绑定的模型版本。省略或为 null 时使用 TtsInfo.version。 */
+            modelVersion?: string | null;
+        };
+        TtsInfo: {
+            mode: string;
+            version: string;
+            device: string;
+            voices: components["schemas"]["TtsVoice"][];
+            available: boolean;
+            reason: string | null;
+        };
+        ExportCapability: {
+            available: boolean;
+            version: string | null;
+            reason: string | null;
+        };
+        VoiceEdit: {
+            expectedRevision: number;
+            voiceId: string;
+        };
+        VoiceBinding: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            projectId: string;
+            characterKey: string;
+            revision: number;
+            voiceId: string;
+            voiceName: string;
+            engineId: string;
+            engineVersion: string;
+            createdAt: number;
+        };
+        SpeechRequest: {
+            /** Format: uuid */
+            shotRevisionId: string;
+            lineOrdinal: number;
+            /** Format: uuid */
+            voiceBindingId: string;
+            speed?: number;
+        };
+        SpeechCall: {
+            text: string;
+            voiceId: string;
+            speed: number;
+            modelVersion?: string | null;
+        };
+        SpeechOrigin: {
+            /** Format: uuid */
+            scriptRevisionId: string;
+            lineOrdinal: number;
+            speaker: string;
+            /** Format: uuid */
+            voiceBindingId: string;
+        };
+        AudioTake: {
+            /** Format: uuid */
+            id: string;
+            revision: number;
+            /** Format: uuid */
+            voiceBindingId: string;
+            /** Format: uuid */
+            taskId: string;
+            media: components["schemas"]["Media"];
+            stale: boolean;
+            createdAt: number;
+        };
+        AudioLine: {
+            ordinal: number;
+            speaker: string;
+            text: string;
+            emotion: string;
+            selectedTakeId: string | null;
+            reviewRevision: number;
+            takes: components["schemas"]["AudioTake"][];
+        };
+        ShotAudio: {
+            /** Format: uuid */
+            shotId: string;
+            /** Format: uuid */
+            shotRevisionId: string;
+            durationMs: number;
+            selectedDurationMs: number;
+            overrunMs: number;
+            lines: components["schemas"]["AudioLine"][];
+        };
+        Caption: {
+            startMs: number;
+            durationMs: number;
+            text: string;
+        };
+        TimelineDialogue: {
+            /** Format: uuid */
+            takeId: string;
+            startMs?: number;
+            gain?: number;
+            subtitle?: string;
+        };
+        TimelineClip: {
+            /** Format: uuid */
+            shotId: string;
+            /** Format: uuid */
+            renderVersionId: string;
+            sourceInMs: number;
+            durationMs: number;
+            originalGain?: number;
+            dialogues?: components["schemas"]["TimelineDialogue"][];
+            captions?: components["schemas"]["Caption"][];
+        };
+        TimelineEdit: {
+            expectedRevision: number;
+            /** Format: uuid */
+            boardId: string;
+            clips: components["schemas"]["TimelineClip"][];
+        };
+        TimelineVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            episodeId: string;
+            /** Format: uuid */
+            boardId: string;
+            revision: number;
+            aspectRatio: string;
+            fps: number;
+            durationMs: number;
+            clips: components["schemas"]["TimelineClip"][];
+            stale: boolean;
+            createdAt: number;
+        };
+        TimelineView: {
+            /** Format: uuid */
+            episodeId: string;
+            current: components["schemas"]["TimelineVersion"] | null;
+        };
+        ExportRequest: {
+            /** Format: uuid */
+            timelineRevisionId: string;
+            /** @enum {string} */
+            resolution?: "480p" | "1080p";
+        };
+        ExportVersion: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            timelineRevisionId: string;
+            /** Format: uuid */
+            taskId: string;
+            /** @enum {string} */
+            resolution: "480p" | "1080p";
+            media: components["schemas"]["Media"];
+            createdAt: number;
+        };
+        ExportDialogue: {
+            audio: components["schemas"]["Media"];
+            startMs: number;
+            gain: number;
+            subtitle: string;
+        };
+        ExportClip: {
+            video: components["schemas"]["Media"];
+            sourceInMs: number;
+            durationMs: number;
+            originalGain: number;
+            dialogues: components["schemas"]["ExportDialogue"][];
+            captions: components["schemas"]["Caption"][];
+        };
+        ExportPlan: {
+            width: number;
+            height: number;
+            fps: number;
+            clips: components["schemas"]["ExportClip"][];
+        };
+        TimelinePage: {
+            items: components["schemas"]["TimelineVersion"][];
+            nextCursor: string | null;
+        };
+        ExportPage: {
+            items: components["schemas"]["ExportVersion"][];
+            nextCursor: string | null;
         };
     };
     responses: never;
@@ -2910,6 +3519,627 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CharacterState"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    renderShot: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShotRenderRequest"];
+            };
+        };
+        responses: {
+            /** @description 已接受 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Accepted"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    renderEpisode: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchRenderRequest"];
+            };
+        };
+        responses: {
+            /** @description 已接受 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchAccepted"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    approveRenderFrame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                fileId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FrameApproval"];
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Shot"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listShotRenders: {
+        parameters: {
+            query?: {
+                shotRevisionId?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderPage"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    approveShotRender: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WritingApproval"];
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderVersion"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    rejectShotRender: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                versionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WritingApproval"];
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RenderVersion"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getTtsInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TtsInfo"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getExportCapability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportCapability"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listVoiceBindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceBinding"][];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    bindVoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                characterKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VoiceEdit"];
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceBinding"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    shotAudio: {
+        parameters: {
+            query?: {
+                shotRevisionId?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShotAudio"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    generateSpeech: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeechRequest"];
+            };
+        };
+        responses: {
+            /** @description 已接受 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Accepted"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    selectAudioTake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                takeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WritingApproval"];
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShotAudio"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getTimeline: {
+        parameters: {
+            query?: {
+                revisionId?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineView"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    saveTimeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TimelineEdit"];
+            };
+        };
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelineVersion"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    timelineHistory: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TimelinePage"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    exportEpisode: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description 已接受 */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Accepted"];
+                };
+            };
+            /** @description 参数、版本冲突、资源或引擎错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listExports: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 成功 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportPage"];
                 };
             };
             /** @description 参数、版本冲突、资源或引擎错误 */

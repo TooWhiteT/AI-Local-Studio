@@ -4,6 +4,8 @@ dependencies {
     implementation(project(":backend:scheduler"))
     implementation(project(":backend:engine-comfy"))
     implementation(project(":backend:engine-llm"))
+    implementation(project(":backend:engine-tts"))
+    implementation(project(":backend:engine-media"))
     implementation(libs.netty)
     implementation(libs.negotiation)
     implementation(libs.server.json)

@@ -10,7 +10,8 @@ import studio.core.*
     val aspectRatio: String, val status: String, val revision: Int, val createdAt: Long)
 @Serializable data class AssetInput(val name: String, val type: String = "CHARACTER")
 @Serializable data class Media(val id: String, val relativePath: String, val sha256: String, val mime: String,
-    val sizeBytes: Long, val width: Int, val height: Int)
+    val sizeBytes: Long, val width: Int, val height: Int, val durationMs: Long? = null,
+    val frameCount: Long? = null, val fps: Double? = null)
 @Serializable data class Version(val id: String, val revision: Int, val approvalStatus: String, val file: Media, val parentVersionId: String? = null)
 @Serializable data class Asset(val id: String, val projectId: String, val name: String, val type: String,
     val versions: List<Version>, val createdAt: Long, val description: String = "",

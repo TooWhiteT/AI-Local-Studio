@@ -164,7 +164,8 @@ async function refresh(reset = false) {
     directory.value = dir
     history.value = versions ?? stories
     engine.value = writer
-    if (reset || (!dirty.value && !keepHistorical)) selectVersion(latest.value?.id ?? '')
+    // An SSE refresh may finish the reload requested after a save or navigation.
+    if (loading.value || (!dirty.value && !keepHistorical)) selectVersion(latest.value?.id ?? '')
   } catch (e) {
     if (n === stamp) store.report(e)
   } finally {
@@ -186,8 +187,8 @@ function open(k: Kind, id = '') {
 onBeforeRouteLeave(mayDiscard)
 onBeforeRouteUpdate(mayDiscard)
 watch(
-  [projectId, () => route.query.task],
-  async ([p, taskId]) => {
+  [projectId, () => route.query.task, () => route.query.episode],
+  async ([p, taskId, requestedEpisode]) => {
     ++stamp
     kind.value = 'OUTLINE'
     episode.value = ''
@@ -216,6 +217,8 @@ watch(
       }
     }
     await refresh(true)
+    if (typeof requestedEpisode === 'string' && requestedEpisode === route.query.episode && p === projectId.value
+      && [...directory.value.episodes, ...directory.value.retired].some(e => e.id === requestedEpisode)) open('SCRIPT', requestedEpisode)
   },
   { immediate: true },
 )

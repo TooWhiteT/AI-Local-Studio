@@ -1,0 +1,55 @@
+{
+  "id": "mock-video",
+  "version": "1",
+  "title": "模拟首帧视频 · 3 秒样片",
+  "mode": "mock",
+  "capabilities": [
+    "image-to-video"
+  ],
+  "parameters": [
+    {
+      "name": "prompt",
+      "label": "镜头描述",
+      "type": "STRING",
+      "node": "1",
+      "input": "text",
+      "default": "测试镜头"
+    },
+    {
+      "name": "seed",
+      "label": "随机种子",
+      "type": "INT",
+      "node": "1",
+      "input": "seed",
+      "default": 42,
+      "min": 0,
+      "max": 2147483647
+    },
+    {
+      "name": "durationSeconds",
+      "label": "目标秒数",
+      "type": "FLOAT",
+      "node": "1",
+      "input": "duration",
+      "default": 3,
+      "min": 3,
+      "max": 5
+    }
+  ],
+  "firstFrame": {
+    "node": "2",
+    "input": "image"
+  },
+  "outputs": [
+    {
+      "node": "1",
+      "field": "images"
+    }
+  ],
+  "models": [],
+  "estimatedVramMb": 0,
+  "frameSize": {
+    "width": 96,
+    "height": 64
+  }
+}

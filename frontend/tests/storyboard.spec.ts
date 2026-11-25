@@ -1,57 +1,10 @@
 import { test, expect } from './studio-fixture'
+import { approvedScript } from './production-fixture'
 
 test('从审核剧本提取资产、比较候选、固定旧版本并编辑分镜', async ({ page, studio, request }) => {
-  const api = studio.url + '/api/v1',
-    errors: string[] = []
+  const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
-  async function put(path: string, data: unknown) {
-    const r = await request.put(api + path, { data })
-    expect(r.ok()).toBeTruthy()
-    return r.json()
-  }
-  async function post(path: string, data: unknown) {
-    const r = await request.post(api + path, { data })
-    expect(r.ok()).toBeTruthy()
-    return r.json()
-  }
-  const project = await post('/projects', { title: '分镜试片' })
-  const prefix = '/projects/' + project.id
-  const outline = await put(prefix + '/outline', {
-    expectedRevision: 0,
-    content: {
-      title: '旧信',
-      logline: '邮局里的来信',
-      world: '山城',
-      characters: [{ key: 'lin', name: '林青', description: '邮局站员' }],
-      locations: [{ key: 'post', name: '邮局', description: '旧柜台' }],
-      beats: ['发现信件'],
-    },
-  })
-  await post(prefix + '/outline/' + outline.id + '/approve', { expectedRevision: 1 })
-  const plan = await put(prefix + '/episodes/plan', {
-    expectedRevision: 0,
-    storyRevisionId: outline.id,
-    content: { episodes: [{ title: '来信', summary: '拆开信封', targetDurationMs: 10000 }] },
-  })
-  const ep = (await (await request.get(api + prefix + '/episodes')).json()).episodes[0].id
-  const script = await put('/episodes/' + ep + '/script', {
-    expectedRevision: 0,
-    storyRevisionId: outline.id,
-    planId: plan.id,
-    content: {
-      title: '来信',
-      scenes: [
-        {
-          locationKey: 'post',
-          characters: ['lin'],
-          durationMs: 10000,
-          action: '站员打开信件。',
-          dialogues: [{ speaker: 'lin', text: '来了。', emotion: '平静' }],
-        },
-      ],
-    },
-  })
-  await post('/episodes/' + ep + '/script/' + script.id + '/approve', { expectedRevision: 1 })
+  const {prefix} = await approvedScript(studio.url, request)
   const assetUrl = studio.url + '/#' + prefix + '/assets',
     boardUrl = studio.url + '/#' + prefix + '/storyboard'
   await page.goto(assetUrl)

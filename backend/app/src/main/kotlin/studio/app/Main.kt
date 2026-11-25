@@ -14,6 +14,9 @@ import kotlin.io.path.*
 import studio.application.*
 import studio.comfy.ComfyClient
 import studio.engine.TextEngine
+import studio.engine.TtsEngine
+import studio.tts.*
+import studio.media.FfmpegEngine
 import studio.llm.*
 import studio.infra.*
 import studio.scheduler.GpuScheduler
@@ -22,7 +25,8 @@ import studio.scheduler.WriterLoadBudget
 data class Settings(val storage: Path, val packages: Path, val mode: String, val address: String,
     val frontend: Path = Path.of("frontend/dist"), val pollMs: Long = 250, val scopedInterrupt: Boolean = mode == "mock",
     val acceptanceOrigin: String? = null, val llmMode: String = if (mode == "mock") "mock" else "disabled",
-    val llmUrl: String = "http://127.0.0.1:8081", val llmModel: String? = null, val writerBudget: WriterLoadBudget = WriterLoadBudget()) {
+    val llmUrl: String = "http://127.0.0.1:8081", val llmModel: String? = null, val writerBudget: WriterLoadBudget = WriterLoadBudget(),
+    val ttsMode: String = if (mode == "mock") "mock" else "fastapi", val ttsUrl: String = "http://127.0.0.1:8000") {
     companion object {
         fun environment(): Settings {
             val mode = System.getenv("STUDIO_ENGINE") ?: "mock"
@@ -31,10 +35,12 @@ data class Settings(val storage: Path, val packages: Path, val mode: String, val
             val configuredPackages = System.getenv("STUDIO_WORKFLOWS")?.takeIf(String::isNotBlank)
             val packages = configuredPackages?.let(Path::of) ?: if (mode == "comfy") Path.of("workflows") else storage.resolve("mock-workflows")
             if (mode == "mock" && configuredPackages == null) {
-                val dest = packages.resolve("mock-image/1")
-                Files.createDirectories(dest)
-                for (name in listOf("manifest.json", "workflow.json")) {
-                    if (!dest.resolve(name).exists()) Files.copy(Path.of("fixtures/mock-workflows/mock-image/1", name), dest.resolve(name))
+                for (key in listOf("mock-image", "mock-video")) {
+                    val dest = packages.resolve(key).resolve("1")
+                    Files.createDirectories(dest)
+                    for (name in listOf("manifest.json", "workflow.json")) {
+                        if (!dest.resolve(name).exists()) Files.copy(Path.of("fixtures/mock-workflows", key, "1", name), dest.resolve(name))
+                    }
                 }
             }
             val port = if (mode == "comfy") 8188 else 18188
@@ -46,16 +52,26 @@ data class Settings(val storage: Path, val packages: Path, val mode: String, val
                 scopedInterrupt = mode == "mock" || System.getenv("COMFY_SCOPED_INTERRUPT") == "true", acceptanceOrigin = acceptance,
                 llmMode = llmMode, llmUrl = llmUrl ?: "http://127.0.0.1:8081", llmModel = System.getenv("STUDIO_LLM_MODEL")?.takeIf(String::isNotBlank),
                 writerBudget = WriterLoadBudget(System.getenv("STUDIO_LLM_LOAD_VRAM_MIB")?.toLong() ?: 0,
-                    System.getenv("STUDIO_LLM_LOAD_RAM_MIB")?.toLong() ?: 0))
+                    System.getenv("STUDIO_LLM_LOAD_RAM_MIB")?.toLong() ?: 0),
+                ttsMode = System.getenv("STUDIO_TTS_MODE") ?: if (mode == "mock") "mock" else "fastapi",
+                ttsUrl = System.getenv("STUDIO_TTS_URL") ?: "http://127.0.0.1:8000")
         }
     }
 }
 class Studio(val settings: Settings) : AutoCloseable {
-    private val lock = StudioLock(settings.storage, settings.mode, java.net.URI(settings.address).port, settings.llmMode == "llama")
+    private val lock = StudioLock(settings.storage, settings.mode, java.net.URI(settings.address).port, settings.llmMode == "llama" || settings.ttsMode == "fastapi")
     val database = StudioDb(settings.storage.resolve("studio.db"))
     val catalog: Catalog = SqlCatalog(database)
     val tasks: Tasks = SqlTasks(database)
     val boards: Storyboards = SqlStoryboards(database)
+    val post: PostProduction = SqlPostProduction(database)
+    val tts: TtsEngine? = when(settings.ttsMode) {
+        "mock" -> MockTtsEngine()
+        "fastapi" -> FastApiTtsEngine(settings.ttsUrl)
+        "disabled" -> null
+        else -> error("未知配音模式")
+    }
+    val exporter = FfmpegEngine(settings.storage)
     val writing: WritingStore = SqlWriting(database)
     val writer: TextEngine? = when (settings.llmMode) {
         "llama" -> LlamaEngine(settings.llmUrl,settings.llmModel,settings.storage)
@@ -67,7 +83,7 @@ class Studio(val settings: Settings) : AutoCloseable {
     val media = LocalMedia(settings.storage)
     val engine = ComfyClient(settings.address, settings.mode, settings.scopedInterrupt, acceptanceOrigin = settings.acceptanceOrigin)
     val registry = WorkflowRegistry(workflows, WorkflowFiles(settings.packages), engine)
-    val scheduler = GpuScheduler(tasks, registry, media, engine, settings.pollMs, writer, settings.writerBudget)
+    val scheduler = GpuScheduler(tasks, registry, media, engine, settings.pollMs, writer, settings.writerBudget,tts=tts,exporter=exporter)
     fun start() = runBlocking {
         media.clean(database)
         registry.refresh()
@@ -87,6 +103,7 @@ fun Application.studioRoutes(studio: Studio) {
             writingRoutes(studio)
             storyboardRoutes(studio)
             productionRoutes(studio)
+            postProductionRoutes(studio)
         }
         staticFiles("/", studio.settings.frontend.toFile(), "index.html")
     }

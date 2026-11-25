@@ -37,6 +37,25 @@ fun Route.storyboardRoutes(studio: Studio) {
         call.respond(boards.approve(call.id(),validId(call.parameters["boardId"].orEmpty()),call.receive<WritingApproval>().expectedRevision))
     }
     put("/scenes/{id}/characters/{key}/state") { call.respond(boards.state(call.id(),call.parameters["key"].orEmpty(),call.receive())) }
+    post("/shots/{id}/keyframes/{fileId}/approve") {
+        call.respond(boards.approveFrame(call.id(),validId(call.parameters["fileId"].orEmpty()),call.receive()))
+    }
+    post("/shots/{id}/render") {
+        val key = call.request.header("Idempotency-Key") ?: invalid("需要 Idempotency-Key")
+        call.respond(HttpStatusCode.Accepted,studio.tasks.enqueueRender(call.id(),key,call.receive(),studio.engine.identity,studio.settings.mode))
+    }
+    post("/episodes/{id}/render") {
+        val key = call.request.header("Idempotency-Key") ?: invalid("需要 Idempotency-Key")
+        call.respond(HttpStatusCode.Accepted,studio.tasks.enqueueBatch(call.id(),key,call.receive(),studio.engine.identity,studio.settings.mode))
+    }
+    get("/shots/{id}/renders") {
+        call.respond(boards.renders(call.id(),call.request.queryParameters["shotRevisionId"]?.let(::validId),call.window()))
+    }
+    fun renderReview(suffix: String,approve: Boolean) = post("/shots/{id}/renders/{versionId}/$suffix") {
+        call.respond(boards.reviewRender(call.id(),validId(call.parameters["versionId"].orEmpty()),call.receive<WritingApproval>().expectedRevision,approve))
+    }
+    renderReview("approve",true)
+    renderReview("reject",false)
     post("/shots/{id}/keyframes/generate") {
         val key=call.request.header("Idempotency-Key") ?: invalid("需要 Idempotency-Key")
         call.respond(HttpStatusCode.Accepted,studio.tasks.enqueueKeyframe(call.id(),key,call.receive(),studio.engine.identity,studio.settings.mode))

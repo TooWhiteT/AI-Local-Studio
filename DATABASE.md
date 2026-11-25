@@ -59,3 +59,15 @@ render_tasks 同时支持图片资产、项目大纲、分集规划和剧本。�
 004 保留原任务 rowid、幂等键、尝试、结果、事件序号及单租约唯一索引。任务目标支持资产提取、剧集拆镜、单镜重做和分镜图片。文字产物 ID 与任务成功事件同事务提交。
 
 006 在镜头引用上另存绑定时的默认资产版本。主动选用已审核的历史版本可通过分镜审核。如果之后默认图发生变化，受影响的镜头提示复核，可继续保留旧图或改绑新版本。入队时固定的默认版本快照也用于判断生成过程中的变更。
+
+## M3 迁移 007
+
+`shot_frame_reviews` 按镜头修订记录首帧和尾帧的选用文件以及乐观锁修订号。`render_batches` 保存批次幂等键和请求哈希，`render_batch_tasks` 保留创建顺序。批次和子任务在同一事务提交。任一成员失效时整批回滚。
+
+`shot_render_versions` 将视频文件、镜头修订、审核状态和生成尝试关联，区分首帧、首尾帧与参考资产版本。文件及提交快照不可变。上游变更时查询返回 stale，历史版本可继续播放。`media_files` 保存实际时长、帧数及帧率。`task_attempts.submit_started` 记录跨越 ComfyUI 提交边界，供服务重启时决定是否可继续准备输入或必须核对远端回执。
+
+## M4 音色、对白和时间轴
+
+迁移 008 扩展 render_tasks 的任务种类，按原 rowid 复制已有记录、重建索引，并通过外键检查。character_voices 用项目、角色键和修订号记录音色绑定。dialogue_takes 将镜头修订和剧本对白序号关联至角色音色版本、任务尝试与媒体。dialogue_selections 的组合外键保证选用同一句的候选，review_revision 保护并发选用。
+
+M4 的时间轴固定使用视频、原声、对白和字幕。概念表 timeline_tracks 的轨道角色由具体字段和子表表示。timelines 固定集、分镜版本、画幅、帧率及总时长。timeline_clips 记录片段序号、已审核视频版本、入点、时长及原声音量。timeline_dialogues 保存该片段的录音版本、起点、增益与对白字幕。独立字幕保存在片段的 captions_json 中。episode_exports 将时间轴修订、输出规格、尝试及成片文件关联。同一时间轴可多次导出，每个尝试最多登记一个结果。[迁移 008](backend/infrastructure/src/main/resources/db/008-post-production.sql)

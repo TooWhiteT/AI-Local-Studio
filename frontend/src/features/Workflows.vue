@@ -107,7 +107,7 @@ async function publish() {
           <span
             >输入参数 <b>{{ w.manifest.parameters.length }}</b></span
           ><span
-            >图片输出 <b>{{ w.manifest.outputs.length }}</b></span
+            >{{ w.manifest.capabilities.some(c => c === 'image-to-video' || c === 'reference-to-video') ? '视频输出' : '图片输出' }} <b>{{ w.manifest.outputs.length }}</b></span
           >
         </div>
         <p v-if="w.reason" class="problem">{{ w.reason }}</p>
@@ -119,7 +119,7 @@ async function publish() {
     </div>
     <div v-else class="panel">
       <blank-panel
-        title="尚未注册图片模板"
+        title="尚未注册工作流模板"
         detail="将本机导出的 API 图与 manifest 放入工作流目录，然后重新检测。"
       />
     </div>

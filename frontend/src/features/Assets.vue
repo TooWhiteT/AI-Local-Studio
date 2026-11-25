@@ -36,11 +36,12 @@ const name = ref(''),
   type = ref<Model['AssetInput']['type']>('CHARACTER'),
   params = reactive<Record<string, Scalar>>({})
 const chosen = computed(() => assets.value.find((a) => a.id === selected.value))
-const flow = computed(() => store.workflows.find((w) => w.id === workflowId.value && w.enabled))
+const imageWorkflows = computed(() => store.workflows.filter((w) => w.manifest.capabilities.includes('text-to-image')))
+const flow = computed(() => imageWorkflows.value.find((w) => w.id === workflowId.value && w.enabled))
 const active = computed(() => project.value?.status === 'ACTIVE')
 const recent = computed(() => store.tasks.find((t) => t.assetId === selected.value))
 const options = computed(() =>
-  store.workflows.map((w) => ({
+  imageWorkflows.value.map((w) => ({
     label: w.manifest.title + ' · v' + w.manifest.version,
     value: w.id,
     disabled: !w.enabled,
@@ -77,7 +78,7 @@ watch(
   () => void load().catch(store.report),
 )
 watch(
-  () => store.workflows,
+  imageWorkflows,
   (items) => {
     if (!items.some((w) => w.enabled && w.id === workflowId.value))
       workflowId.value = items.find((w) => w.enabled)?.id ?? ''

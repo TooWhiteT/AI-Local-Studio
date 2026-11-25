@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -49,7 +49,34 @@ async function ready(url: string) {
     )
     .toBe(200)
 }
-export const test = base.extend<{ studio: { url: string; restart: () => Promise<void> } }>({
+// Extra wire fixtures live only in the disposable browser-test directory.
+async function installRenderModes(storage: string) {
+  const packages = join(storage, 'mock-workflows')
+  for (const mode of ['dual', 'reference']) {
+    const key = 'mock-video-' + mode
+    const src = join(packages, 'mock-video', '1')
+    const dir = join(packages, key, '1')
+    const manifest = JSON.parse(await readFile(join(src, 'manifest.json'), 'utf8'))
+    const graph = JSON.parse(await readFile(join(src, 'workflow.json'), 'utf8'))
+    manifest.id = key
+    manifest.title = mode === 'dual' ? '模拟首尾帧' : '模拟参考图'
+    if (mode === 'dual') {
+      graph['3'] = structuredClone(graph['2'])
+      graph['1'].inputs.last_frame = ['3', 0]
+      manifest.lastFrame = { node: '3', input: 'image' }
+    } else {
+      manifest.capabilities = ['reference-to-video']
+      manifest.referenceImage = manifest.firstFrame
+      delete manifest.firstFrame
+    }
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, 'manifest.json'), JSON.stringify(manifest))
+    await writeFile(join(dir, 'workflow.json'), JSON.stringify(graph))
+  }
+}
+export const test = base.extend<{
+  studio: { url: string; restart: () => Promise<void>; installRenderModes: () => Promise<void> }
+}>({
   studio: async ({}, use) => {
     const storage = await mkdtemp(join(tmpdir(), 'studio-browser-'))
     const mockPort = await port(),
@@ -75,6 +102,7 @@ export const test = base.extend<{ studio: { url: string; restart: () => Promise<
       await start()
       await use({
         url,
+        installRenderModes: () => installRenderModes(storage),
         restart: async () => {
           await stop(app!)
           await start()

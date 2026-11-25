@@ -15,7 +15,7 @@ private fun ResultSet.nullLong(key: String): Long? = getLong(key).takeUnless { w
 private fun ResultSet.toAttempt() = Attempt(getString("id"), getInt("attempt_no"), getString("engine_id"), getString("external_id"),
     TaskStatus.valueOf(getString("status")), getString("error_json")?.let { json.decodeFromString<Problem>(it) },
     nullLong("started_at"), nullLong("finished_at"), getString("node"), getDouble("node_progress").takeUnless { wasNull() },
-    nullLong("peak_vram_bytes"), nullLong("peak_ram_bytes"), getInt("resource_samples"))
+    nullLong("peak_vram_bytes"), nullLong("peak_ram_bytes"), getInt("resource_samples"),getBoolean("submit_started"))
 
 class SqlTasks(private val db: StudioDb) : Tasks {
     private fun Connection.task(id: String): Task {
@@ -52,6 +52,8 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         event(id, "PENDING")
     }
     private fun Connection.existing(projectId: String, key: String, hash: String): Accepted? {
+        if (rows("SELECT 1 FROM render_batches WHERE project_id=? AND idempotency_key=?",projectId,validId(key)) { getInt(1) }.isNotEmpty())
+            conflict("幂等键已用于另一批量请求")
         val existing = rows("SELECT id,request_hash,status FROM render_tasks WHERE project_id=? AND idempotency_key=?", projectId, validId(key)) {
             Triple(getString(1), getString(2), getString(3))
         }.firstOrNull()
@@ -167,12 +169,118 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         val snapshot=imageSnapshot(gen,mode).copy(shotRevisionId=current.revisionId,assetVersionIds=current.references.map { it.versionId })
         addImageTask(project,"SHOT",shot,"KEYFRAME",key,hash,gen,snapshot,engineId)
     }
-    private fun Connection.imageSnapshot(request: Generate,mode: String): Snapshot =
+    private fun postHash(kind: String,target: String,request: JsonElement) = sha256((kind+target+sortedJson(request)).toByteArray())
+    override fun priorSpeech(shot: String,key: String,request: SpeechRequest) = db.tx {
+        existing(ownerProject(WritingKind.SCRIPT,episodeForShot(shot)),key,postHash("SHOT_AUDIO",shot,json.encodeToJsonElement(request)))
+    }
+    override fun enqueueSpeech(shot: String,key: String,request: SpeechRequest,engineId: String,info: studio.engine.TtsInfo) = db.tx {
+        val project = ownerProject(WritingKind.SCRIPT,episodeForShot(shot))
+        val hash = postHash("SHOT_AUDIO",shot,json.encodeToJsonElement(request))
+        existing(project,key,hash)?.let { return@tx it }
+        val snapshot = speechSnapshot(shot,request,engineId,info)
+        addTextTask(project,"SHOT",shot,"SHOT_AUDIO",snapshot,hash,key,engineId)
+    }
+    override fun priorExport(episode: String,key: String,request: ExportRequest) = db.tx {
+        existing(ownerProject(WritingKind.SCRIPT,episode),key,postHash("EPISODE_EXPORT",episode,json.encodeToJsonElement(request)))
+    }
+    override fun enqueueExport(episode: String,key: String,request: ExportRequest,engineId: String,version: String) = db.tx {
+        val project = ownerProject(WritingKind.SCRIPT,episode)
+        val hash = postHash("EPISODE_EXPORT",episode,json.encodeToJsonElement(request))
+        existing(project,key,hash)?.let { return@tx it }
+        addTextTask(project,"EPISODE",episode,"EPISODE_EXPORT",exportSnapshot(episode,request,version),hash,key,engineId)
+    }
+    private fun renderHash(target: String, body: JsonElement) =
+        sha256(("SHOT_RENDER" + target + sortedJson(body)).toByteArray())
+
+    override fun enqueueRender(shot: String,key: String,request: RenderRequest,engineId: String,mode: String) = db.tx {
+        val episode = episodeForShot(shot)
+        val project = ownerProject(WritingKind.SCRIPT,episode)
+        val hash = renderHash(shot,json.encodeToJsonElement(request))
+        existing(project,key,hash)?.let { return@tx it }
+        val board = currentForRender(episode)
+        val current = board.shots.find { it.id == shot && it.revisionId == validId(request.shotRevisionId) }
+            ?: conflict("请选择该镜头的当前修订")
+        addRenderTask(project,board,current,request,key,hash,engineId,mode)
+    }
+
+    override fun enqueueBatch(episode: String,key: String,request: BatchRequest,engineId: String,mode: String) = db.tx {
+        val project = ownerProject(WritingKind.SCRIPT,episode)
+        val hash = renderHash(episode,json.encodeToJsonElement(request))
+        val prior = rows("SELECT id,request_hash FROM render_batches WHERE project_id=? AND idempotency_key=?",project,validId(key)) {
+            getString(1) to getString(2)
+        }.singleOrNull()
+        if (prior != null) {
+            if (prior.second != hash) conflict("幂等键已用于不同批量请求")
+            return@tx BatchAccepted(prior.first,rows("SELECT task_id FROM render_batch_tasks WHERE batch_id=? ORDER BY ordinal",prior.first) { getString(1) })
+        }
+        existing(project,key,hash)?.let { conflict("幂等键已用于单任务请求") }
+        val board = currentForRender(episode)
+        if (board.version?.id != validId(request.boardId)) conflict("请选择本集当前已审核分镜")
+        val shots = board.shots.associateBy { it.revisionId }
+        checkInput(request.shots.isNotEmpty() && request.shots.size <= shots.size &&
+            request.shots.distinctBy { it.shotRevisionId }.size == request.shots.size,"请选择本集镜头且不可重复")
+        val batch = uid()
+        update("INSERT INTO render_batches VALUES(?,?,?,?,?,?)",batch,project,request.boardId,key,hash,now())
+        val ids = request.shots.mapIndexed { ordinal, selection ->
+            val current = shots[validId(selection.shotRevisionId)] ?: invalid("包含其他剧集或过期的镜头修订")
+            val item = RenderRequest(current.revisionId,selection.firstFrameId,request.workflowId,request.workflowVersion,
+                request.parameters,selection.lastFrameId,selection.referenceVersionId)
+            val accepted = addRenderTask(project,board,current,item,uid(),renderHash(current.id,json.encodeToJsonElement(item)),engineId,mode)
+            update("INSERT INTO render_batch_tasks VALUES(?,?,?)",batch,ordinal,accepted.taskId)
+            accepted.taskId
+        }
+        BatchAccepted(batch,ids)
+    }
+
+    private fun Connection.addRenderTask(project: String,board: Board,shot: Shot,request: RenderRequest,key: String,hash: String,
+        engineId: String,mode: String): Accepted {
+        fun selectedFrame(id: String, selected: String?): Media {
+            if (selected != validId(id)) conflict("渲染只能使用该镜头修订已审核的帧")
+            return shot.previews.find { it.id == id } ?: invalid("该镜头无此帧")
+        }
+        val reference = request.referenceVersionId?.let { version ->
+            val bound = shot.references.find { it.versionId == validId(version) } ?: invalid("参考图必须来自该镜头绑定的资产版本")
+            approvedReferences(project,listOf(bound.versionId)).single()
+        }
+        checkInput((reference == null) == (request.firstFrameId != null),"请选择审核首帧或已绑定的参考资产版本")
+        checkInput(reference == null || request.lastFrameId == null,"参考图模式不可指定尾帧")
+        val first = request.firstFrameId?.let { selectedFrame(it,shot.approvedPreviewId) }
+        val last = request.lastFrameId?.let { selectedFrame(it,shot.approvedLastFrameId) }
+        val supplied = request.parameters.toMutableMap()
+        supplied.remove("resolution")?.let { checkInput(it == JsonPrimitive("480p"),"当前视频模板仅支持 480p") }
+        supplied.remove("durationMs")?.let { raw ->
+            val duration = (raw as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull ?: invalid("时长须为整数毫秒")
+            checkInput("durationSeconds" !in supplied,"时长参数重复")
+            supplied["durationSeconds"] = JsonPrimitive(duration / 1000.0)
+        }
+        val extra = supplied["prompt"]?.let {
+            (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content ?: invalid("提示词应为文本")
+        }.orEmpty()
+        val scene = board.scenes.single { it.id == shot.sceneId }
+        val referencePrompt = reference?.let { "<Picture 1>：${it.name}，${it.visualPrompt?.ifBlank { it.description } ?: it.description}" }.orEmpty()
+        val prompt = listOf(referencePrompt,scene.location,shot.framing,shot.camera,shot.action,extra).filter { it.isNotBlank() }.joinToString("。")
+        supplied["prompt"] = JsonPrimitive(prompt)
+        val gen = Generate(request.workflowId,request.workflowVersion,JsonObject(supplied))
+        val capability = if (reference != null) "reference-to-video" else "image-to-video"
+        val snapshot = imageSnapshot(gen,mode,capability,last != null,shot.durationMs).copy(boardId=checkNotNull(board.version).id,
+            shotRevisionId=shot.revisionId,assetVersionIds=shot.references.map { it.versionId },firstFrame=first,lastFrame=last,
+            referenceFrame=reference?.file,referenceVersionId=reference?.versionId)
+        return addImageTask(project,"SHOT",shot.id,"SHOT_RENDER",key,hash,gen,snapshot,engineId)
+    }
+    private fun Connection.imageSnapshot(request: Generate,mode: String,capability: String = "text-to-image",lastFrame: Boolean = false,
+        shotDurationMs: Int? = null): Snapshot =
         rows("SELECT * FROM workflows WHERE id=?", validId(request.workflowId)) {
             val m = json.decodeFromString<Manifest>(getString("manifest_json"))
             checkInput(request.workflowVersion == m.version && mode == m.mode, "模板版本或引擎模式不匹配")
             if (!getBoolean("enabled")) unavailable(getString("reason") ?: "模板已禁用")
-            val values = parameters(m, request.parameters)
+            checkInput(capability in m.capabilities,"模板不支持所请求的任务类型")
+            checkInput((m.lastFrame != null) == lastFrame,"首尾帧模板需要已审核尾帧，首帧模板仅接受首帧")
+            val durationBinding = m.parameters.find { it.name == "durationSeconds" }
+            val supplied = if (shotDurationMs != null && durationBinding != null && "durationSeconds" !in request.parameters) {
+                val seconds = (shotDurationMs / 1000.0).coerceIn(durationBinding.min ?: 0.0,durationBinding.max ?: Double.MAX_VALUE)
+                JsonObject(request.parameters + ("durationSeconds" to JsonPrimitive(seconds)))
+            } else request.parameters
+            val values = parameters(m, supplied)
             val bound = bind(json.parseToJsonElement(getString("graph_json")).jsonObject, m, values)
             val seeds = buildMap {
                 for ((nodeId, node) in bound) {
@@ -182,7 +290,8 @@ class SqlTasks(private val db: StudioDb) : Tasks {
                 }
             }
             Snapshot(request.workflowId, m.version, getString("template_hash"), values,
-                m.models.map { it.name }, getString("engine_version"), seeds = seeds)
+                m.models.map { it.name }, getString("engine_version"), seeds = seeds, targetWidth=m.frameSize?.width,
+                targetHeight=m.frameSize?.height,plannedFrameCount=if (shotDurationMs == null) null else plannedVideoFrames(bound))
         }.firstOrNull() ?: missing("模板不存在")
     private fun Connection.addImageTask(projectId: String,targetType: String,target: String,kind: String,key: String,
         hash: String,request: Generate,snapshot: Snapshot,engineId: String): Accepted {
@@ -251,6 +360,11 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         if (a.id != attemptId || a.status != READY || rows("SELECT 1 FROM render_tasks WHERE status IN ($leased)") { getInt(1) }.isNotEmpty()) false
         else { transition(taskId, SUBMITTING); true }
     }
+    override fun beginRenderSubmit(taskId: String, attemptId: String) = db.tx {
+        update("""UPDATE task_attempts SET submit_started=1 WHERE id=? AND task_id=? AND status='SUBMITTING' AND submit_started=0
+            AND EXISTS(SELECT 1 FROM render_tasks WHERE id=? AND status='SUBMITTING' AND task_type='SHOT_RENDER' AND cancel_requested=0)""",
+            attemptId,taskId,taskId) == 1
+    }
     override fun acknowledge(taskId: String, externalId: String?) = db.tx {
         val t = task(taskId)
         val a = t.attempts.last()
@@ -294,10 +408,27 @@ class SqlTasks(private val db: StudioDb) : Tasks {
         check(files.isNotEmpty() && t.status in setOf(SUBMITTED, RUNNING))
         var revision = rows("SELECT coalesce(max(revision),0) FROM asset_versions WHERE asset_id=?", t.assetId) { getInt(1) }.single()
         for ((i, f) in files.withIndex()) {
-            update("""INSERT INTO media_files(id,project_id,relative_path,sha256,mime,size_bytes,width,height,created_at)
-                VALUES(?,?,?,?,?,?,?,?,?)""", f.id, t.projectId, f.relativePath, f.sha256, f.mime, f.sizeBytes, f.width, f.height, now())
+            update("""INSERT INTO media_files(id,project_id,relative_path,sha256,mime,size_bytes,width,height,duration_ms,frame_count,fps,created_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", f.id, t.projectId, f.relativePath, f.sha256, f.mime, f.sizeBytes, f.width, f.height, f.durationMs, f.frameCount, f.fps, now())
             if (t.kind=="KEYFRAME") update("INSERT INTO shot_previews VALUES(?,?,?,?)",checkNotNull(t.snapshot.shotRevisionId),f.id,a.id,i)
-            else update("""INSERT INTO asset_versions(id,asset_id,revision,file_id,metadata_json,approval_status,parent_version_id,created_at)
+            else if (t.kind == "SHOT_AUDIO") {
+                check(files.size == 1 && f.mime.startsWith("audio/") && (f.durationMs ?: 0) > 0)
+                val origin = checkNotNull(t.snapshot.speechOrigin)
+                val rev = checkNotNull(t.snapshot.shotRevisionId)
+                update("""INSERT INTO dialogue_takes(id,project_id,shot_id,shot_revision_id,line_ordinal,revision,voice_binding_id,attempt_id,file_id,created_at)
+                    SELECT ?,?,?,?,?,coalesce(max(revision),0)+1,?,?,?,? FROM dialogue_takes WHERE shot_revision_id=? AND line_ordinal=?""",
+                    uid(),t.projectId,t.targetId,rev,origin.lineOrdinal,origin.voiceBindingId,a.id,f.id,now(),rev,origin.lineOrdinal)
+            } else if (t.kind == "EPISODE_EXPORT") {
+                check(files.size == 1 && f.mime == "video/mp4" && (f.durationMs ?: 0) > 0)
+                update("INSERT INTO episode_exports VALUES(?,?,?,?,?,?,?)",uid(),t.targetId,checkNotNull(t.snapshot.timelineRevisionId),
+                    t.snapshot.parameters.text("resolution"),a.id,f.id,now())
+            } else if (t.kind=="SHOT_RENDER") {
+                check(f.mime.startsWith("video/") && (f.frameCount ?: 0) >= 2 && (f.durationMs ?: 0) > 0)
+                update("""INSERT INTO shot_render_versions(id,shot_id,shot_revision_id,revision,board_id,first_file_id,last_file_id,reference_version_id,
+                    attempt_id,file_id,created_at) SELECT ?,?,?,coalesce(max(revision),0)+1,?,?,?,?,?,?,? FROM shot_render_versions WHERE shot_id=?""",
+                    uid(),t.targetId,checkNotNull(t.snapshot.shotRevisionId),checkNotNull(t.snapshot.boardId),
+                    t.snapshot.firstFrame?.id,t.snapshot.lastFrame?.id,t.snapshot.referenceVersionId,a.id,f.id,now(),t.targetId)
+            } else update("""INSERT INTO asset_versions(id,asset_id,revision,file_id,metadata_json,approval_status,parent_version_id,created_at)
                 VALUES(?,?,?,?,?,'REVIEW_REQUIRED',?,?)""", uid(), t.assetId, ++revision, f.id, json.encodeToString(t.snapshot), t.snapshot.parentAssetVersionId, now())
             update("INSERT INTO render_results VALUES(?,?,?,?,?,?)", uid(), a.id, f.id, t.kind, i, now())
         }

@@ -1,0 +1,61 @@
+{
+  "id": "z-image-turbo",
+  "version": "1.0.0",
+  "title": "Z-Image-Turbo 1024 × 1024",
+  "mode": "comfy",
+  "capabilities": [
+    "text-to-image"
+  ],
+  "parameters": [
+    {
+      "name": "prompt",
+      "label": "画面描述",
+      "type": "STRING",
+      "node": "67",
+      "input": "text",
+      "default": "anime RPG game style, cute anime girl with gigantic fennec ears and a big fluffy fox tail with long wavy blonde hair and large blue eyes blonde colored eyelashes wearing a pink sweater a large oversized gold trimmed black winter coat and a long blue maxi skirt and a red scarf, she is sitting beside a campfire in the wilderness at night playing guitar with a milky way galaxy sky"
+    },
+    {
+      "name": "negativePrompt",
+      "label": "负面描述",
+      "type": "STRING",
+      "node": "71",
+      "input": "text",
+      "default": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs"
+    },
+    {
+      "name": "seed",
+      "label": "随机种子",
+      "type": "INT",
+      "node": "70",
+      "input": "seed",
+      "default": 42,
+      "min": 0,
+      "max": 2147483647
+    }
+  ],
+  "outputs": [
+    {
+      "node": "9",
+      "field": "images"
+    }
+  ],
+  "models": [
+    {
+      "node": "66",
+      "input": "unet_name",
+      "name": "z_image_turbo_bf16.safetensors"
+    },
+    {
+      "node": "62",
+      "input": "clip_name",
+      "name": "qwen_3_4b.safetensors"
+    },
+    {
+      "node": "63",
+      "input": "vae_name",
+      "name": "ae.safetensors"
+    }
+  ],
+  "estimatedVramMb": 21379
+}

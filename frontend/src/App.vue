@@ -53,6 +53,12 @@ const nav = computed(() => [
   },
   { to: currentAssetProject.value ? '/projects/' + currentAssetProject.value.id + '/storyboard' : '/projects',
     title: '分镜工作台', icon: 'flow', active: route.path.endsWith('/storyboard'), disabled: !currentAssetProject.value },
+  { to: currentAssetProject.value ? '/projects/' + currentAssetProject.value.id + '/render' : '/projects',
+    title: '视频渲染', icon: 'picture', active: route.path.endsWith('/render'), disabled: !currentAssetProject.value },
+  { to: currentAssetProject.value ? '/projects/' + currentAssetProject.value.id + '/audio' : '/projects',
+    title: '角色配音', icon: 'queue', active: route.path.endsWith('/audio'), disabled: !currentAssetProject.value },
+  { to: currentAssetProject.value ? '/projects/' + currentAssetProject.value.id + '/edit' : '/projects',
+    title: '剪辑成片', icon: 'flow', active: route.path.endsWith('/edit'), disabled: !currentAssetProject.value },
   { to: '/tasks', title: '任务中心', icon: 'queue', active: route.path === '/tasks' },
   { to: '/workflows', title: '工作流', icon: 'flow', active: route.path === '/workflows' },
 ])

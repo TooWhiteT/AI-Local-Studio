@@ -57,7 +57,7 @@ class WireTest {
         val server = mockServer(mock, 0).start()
         val engine = ComfyClient("http://127.0.0.1:${server.engine.resolvedConnectors().single().port}", "mock")
         try {
-            val pkg = WorkflowFiles(Path.of("fixtures/mock-workflows")).packages().single()
+            val pkg = WorkflowFiles(Path.of("fixtures/mock-workflows")).packages().single { it.manifest.id == "mock-image" }
             val info = engine.objectInfo()
             validatePackage(pkg, "mock", info)
             assertFailsWith<StudioError> { validatePackage(pkg, "comfy", info) }
