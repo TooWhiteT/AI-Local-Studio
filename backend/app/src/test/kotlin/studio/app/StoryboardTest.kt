@@ -59,6 +59,8 @@ class StoryboardTest {
             studio.catalog.review(foreign.id,fv.id,0,true)
             assertFailsWith<StudioError>{queue(BoardJob.SHOT_PLAN,ep,req.copy(assetVersionIds=listOf(fv.id)))}
             val task=await(queue(BoardJob.SHOT_PLAN,ep,req),SUCCEEDED)
+            assertFalse("previousShot" in task.snapshot.parameters)
+            assertFalse("nextShot" in task.snapshot.parameters)
             val original=studio.boards.board(ep,task.writingResultId)
             assertEquals(listOf(1,1,2,2),original.shots.map{it.sceneOrdinal})
             assertEquals(60000,original.shots.sumOf{it.durationMs})
@@ -74,13 +76,20 @@ class StoryboardTest {
             assertFailsWith<StudioError>{studio.boards.reorder(ep,ShotOrder(2,List(4){one.id}))}
             val reordered=studio.boards.reorder(ep,ShotOrder(2,edit.shots.map{it.id}.reversed()))
             val future=queue(BoardJob.SHOT_REGENERATE,one.id,req.copy(expectedRevision=3,assetVersionIds=listOf(v2.id),brief="将信收进衣袋"))
-            val regenerated=studio.boards.board(ep,await(future,SUCCEEDED).writingResultId)
+            val result = await(future, SUCCEEDED)
+            val previous = reordered.shots[reordered.shots.lastIndex - 1]
+            val previousInput = result.snapshot.parameters.getValue("previousShot").jsonObject
+            assertEquals(previous.ordinal, previousInput.getValue("ordinal").jsonPrimitive.int)
+            assertEquals(previous.action, previousInput.getValue("action").jsonPrimitive.content)
+            assertFalse("nextShot" in result.snapshot.parameters)
+            val regenerated=studio.boards.board(ep,result.writingResultId)
             assertEquals(reordered.shots.dropLast(1),regenerated.shots.dropLast(1))
             val newest=regenerated.shots.last()
             assertEquals(4501,newest.durationMs);assertEquals(v2.id,newest.references.single().versionId)
             studio.scheduler.stop()
             val keyframe=studio.tasks.enqueueKeyframe(one.id,uid(),KeyframeRequest(newest.revisionId,wf.id,wf.manifest.version),studio.engine.identity,"mock").taskId
             val inflight=queue(BoardJob.SHOT_REGENERATE,one.id,req.copy(expectedRevision=4))
+            val atSceneBoundary = queue(BoardJob.SHOT_REGENERATE, previous.id, req.copy(expectedRevision=4))
             studio.boards.edit(one.id,ShotEdit(4,camera="俯拍"))
             restart()
             val preview=await(keyframe,SUCCEEDED)
@@ -90,6 +99,13 @@ class StoryboardTest {
             assertEquals(preview.results,studio.boards.locate(one.id,newest.revisionId).shots.last().previews)
             assertTrue(studio.boards.board(ep).shots.last().previews.isEmpty())
             assertEquals("REVISION_CONFLICT",await(inflight,FAILED).attempts.single().error?.code)
+            val boundaryResult = await(atSceneBoundary, FAILED)
+            assertEquals("REVISION_CONFLICT", boundaryResult.attempts.single().error?.code)
+            assertFalse("previousShot" in boundaryResult.snapshot.parameters)
+            val nextInput = boundaryResult.snapshot.parameters.getValue("nextShot").jsonObject
+            assertEquals(newest.camera, nextInput.getValue("camera").jsonPrimitive.content)
+            assertEquals(newest.framing, nextInput.getValue("framing").jsonPrimitive.content)
+            assertEquals(newest.action, nextInput.getValue("action").jsonPrimitive.content)
             assertEquals(5,studio.boards.history(ep,Window()).items.size)
             assertEquals(v1.file,studio.boards.board(ep,original.version!!.id).shots.first().references.single().file)
             val sc=original.scenes.first().id

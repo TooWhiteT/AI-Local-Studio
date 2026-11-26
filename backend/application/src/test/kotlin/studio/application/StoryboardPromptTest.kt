@@ -7,6 +7,16 @@ import studio.core.*
 class StoryboardPromptTest {
     private val shot = buildJsonObject { put("framing","近景");put("camera","平视");put("action","收起票根") }
 
+    @Test fun h3VersionThreeExamplesMatchTheWriterResponseSchemas() {
+        val example = Regex("""```json\s+(.*?)\s*```""", RegexOption.DOT_MATCHES_ALL)
+        for (kind in listOf(BoardJob.SHOT_PLAN, BoardJob.SHOT_REGENERATE)) {
+            val template = assertNotNull(javaClass.getResource("/${kind.folder}/3.md")).readText()
+            val response = assertNotNull(example.find(template), "缺少 ${kind.folder} 的 JSON 示例")
+            val schema = StoryboardPrompts.forTask(kind, scenes = 1, count = 2, thinking = false).schema
+            validateShape(schema, json.parseToJsonElement(response.groupValues[1]), kind.folder)
+        }
+    }
+
     @Test fun planFixesNumberOfScenesAndShotsAndRejectsUnexpectedFields() {
         val prompt=StoryboardPrompts.forTask(BoardJob.SHOT_PLAN,2,3,false)
         fun plan(scenes:Int,count:Int,value:JsonObject=shot)=buildJsonObject {

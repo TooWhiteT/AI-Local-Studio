@@ -13,12 +13,23 @@ internal fun Connection.boardProject(kind: BoardJob, target: String): String = w
 
 internal data class BoardContext(val source: ScriptSource, val selected: Shot?, val references: List<Reference>, val input: JsonObject)
 
+private fun Shot.promptContext() = buildJsonObject {
+    put("sceneOrdinal", sceneOrdinal)
+    put("ordinal", ordinal)
+    put("framing", framing)
+    put("camera", camera)
+    put("action", action)
+    put("durationMs", durationMs)
+}
+
 internal fun Connection.boardContext(kind: BoardJob, target: String, request: BoardRequest): BoardContext {
     val src=source(request.scriptRevisionId)
     checkInput(boardProject(kind,target)==src.project,"目标与剧本必须属于同一项目")
     requireScript(src)
     checkInput(request.brief.length<=4000 && request.shotsPerScene in 1..8,"创作说明或每场镜头数超出范围")
     var selected: Shot?=null
+    var previousShot: Shot? = null
+    var nextShot: Shot? = null
     if (kind==BoardJob.ASSET_EXTRACT) {
         if (src.revision!=request.expectedRevision) conflict("剧本已更新")
         checkInput(request.assetVersionIds.isEmpty(),"提取资产无需提供参考版本")
@@ -28,7 +39,12 @@ internal fun Connection.boardContext(kind: BoardJob, target: String, request: Bo
         val head=expectBoard(episode,request.expectedRevision)
         if (kind==BoardJob.SHOT_REGENERATE) {
             if (head?.scriptRevisionId!=src.id) conflict("当前分镜的上游剧本已变化")
-            selected=loadBoard(episode).shots.find { it.id==target } ?: conflict("镜头已移出当前分镜")
+            val ordered = loadBoard(episode).shots
+            val index = ordered.indexOfFirst { it.id == target }
+            val current = ordered.getOrNull(index) ?: conflict("镜头已移出当前分镜")
+            selected = current
+            previousShot = ordered.getOrNull(index - 1)?.takeIf { it.sceneId == current.sceneId }
+            nextShot = ordered.getOrNull(index + 1)?.takeIf { it.sceneId == current.sceneId }
         }
     }
     val refs=approvedReferences(src.project, if (kind==BoardJob.SHOT_REGENERATE && request.assetVersionIds.isEmpty())
@@ -41,10 +57,9 @@ internal fun Connection.boardContext(kind: BoardJob, target: String, request: Bo
         put("references",buildJsonArray { for(ref in refs) addJsonObject {
             put("name",ref.name); put("type",ref.type); put("version",ref.revision); put("description",ref.description); ref.visualPrompt?.let { put("visualPrompt",it.take(500)) }
         } })
-        selected?.let { shot -> put("shot",buildJsonObject {
-            put("sceneOrdinal",shot.sceneOrdinal); put("ordinal",shot.ordinal); put("framing",shot.framing)
-            put("camera",shot.camera); put("action",shot.action); put("durationMs",shot.durationMs)
-        }) }
+        selected?.let { put("shot", it.promptContext()) }
+        previousShot?.let { put("previousShot", it.promptContext()) }
+        nextShot?.let { put("nextShot", it.promptContext()) }
     }
     return BoardContext(src,selected,refs,input)
 }
