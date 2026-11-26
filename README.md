@@ -111,6 +111,12 @@ Start-Sleep -Seconds 20
 (Invoke-RestMethod 'http://192.168.31.154:8081/props').is_sleeping
 ```
 
+## 更新文字提示词
+
+各文字任务的启用版本集中在 [`prompts/versions.json`](prompts/versions.json)。切换已有版本时，修改对应任务的配置值即可。发布新版本时，在 `prompts/<任务目录>/` 新增按版本号命名的 Markdown 文件，再将配置值切到该版本。
+
+保存后沿用原启动配置重新运行 `./gradlew :backend:app:run`，安装包部署则重新构建并更新后端。新提交的任务使用选定版本，已有任务从提交时的输入快照恢复或重试。
+
 ## 接入本机 ComfyUI
 
 仓库已包含在 RTX 5090 上通过出图验收的 Z-Image-Turbo 1.0.0。已有相同节点和模型的 ComfyUI 启动后，在同机用真实模式启动 Studio，进入「资产生成」即可选择模板。[Z-Image-Turbo 接入说明](workflows/z-image-turbo/README.md)

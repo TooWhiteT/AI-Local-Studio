@@ -50,9 +50,6 @@ interface Storyboards {
 }
 
 object StoryboardPrompts {
-    private val instructions = BoardJob.entries.associateWith { job ->
-        checkNotNull(javaClass.getResource("/${job.folder}/1.md")).readText().trim()
-    }
     private fun string(max: Int) = buildJsonObject { put("type","string"); put("minLength",1); put("maxLength",max) }
     private fun obj(vararg fields: Pair<String,JsonObject>) = buildJsonObject {
         put("type","object"); put("properties",JsonObject(fields.toMap()))
@@ -72,6 +69,6 @@ object StoryboardPrompts {
             BoardJob.SHOT_PLAN -> obj("scenes" to array(obj("shots" to array(shot,count,count)),scenes,scenes))
             BoardJob.SHOT_REGENERATE -> shot
         }
-        return TextPrompt("1",instructions.getValue(kind),schema,thinking)
+        return PromptTemplates.forTask(kind.folder, schema, thinking)
     }
 }

@@ -26,10 +26,13 @@ interface WritingStore {
 }
 
 object WritingPrompts {
-    val templates = WritingKind.entries.associateWith { kind ->
-        fun resource(path: String) = checkNotNull(javaClass.getResource(path)).readText()
-        TextPrompt("1", resource("/${kind.folder}/1.md").trim(), json.parseToJsonElement(resource("/writing/${kind.name}.json")).jsonObject)
+    private val schemas = WritingKind.entries.associateWith { kind ->
+        val path = "/writing/${kind.name}.json"
+        val schema = checkNotNull(javaClass.getResource(path)).readText()
+        json.parseToJsonElement(schema).jsonObject
     }
+
+    internal fun baseSchema(kind: WritingKind): JsonObject = schemas.getValue(kind)
 
     private fun JsonObject.updateAt(path: String, change: (JsonObject) -> JsonObject): JsonObject {
         val key = path.substringBefore('.')
@@ -39,8 +42,7 @@ object WritingPrompts {
     }
 
     fun forTask(kind: WritingKind, request: WritingRequest, outline: JsonObject?, episodeDurationMs: Int? = null): TextPrompt {
-        val template = templates.getValue(kind)
-        var schema = template.schema
+        var schema = baseSchema(kind)
         fun count(path: String, size: Int?, allowed: IntRange) {
             if (size == null) return
             checkInput(size in allowed, "生成数量超出范围 ${allowed.first}–${allowed.last}")
@@ -73,7 +75,7 @@ object WritingPrompts {
                 choices("$scene.dialogues.items.properties.speaker", "characters")
             }
         }
-        return template.copy(schema = schema)
+        return PromptTemplates.forTask(kind.folder, schema)
     }
 
 }
@@ -109,7 +111,7 @@ fun validateShape(schema: JsonObject, value: JsonElement, path: String) {
     }
 }
 fun validateWriting(kind: WritingKind, content: JsonObject, outline: JsonObject? = null, episodeCount: Int? = null) {
-    validateShape(WritingPrompts.templates.getValue(kind).schema, content, kind.folder)
+    validateShape(WritingPrompts.baseSchema(kind), content, kind.folder)
     fun keys(doc: JsonObject, name: String) = doc.getValue(name).jsonArray.map { it.jsonObject.getValue("key").jsonPrimitive.content }
     when (kind) {
         WritingKind.OUTLINE -> for (name in listOf("characters","locations")) {

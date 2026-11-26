@@ -8,6 +8,7 @@ Vue 3 / TypeScript / Vite / Pinia / Naive UI → Ktor REST + SSE → 应用服�
 frontend/src/{api,stores,router,features,components}
 backend/{app,core,domain,application,infrastructure,engine-api,engine-comfy,engine-llm,engine-tts,engine-media,scheduler}
 workflows/<id>/<version>/{workflow.json,manifest.json}
+prompts/versions.json
 prompts/<role>/<version>.md
 storage/{projects,staging,comfy-input,comfy-output}
 ```
@@ -47,6 +48,8 @@ Mock 为独立的回环 REST/WS 测试服务，使用专用模板目录与带标
 ## M1 文字生成
 
 编剧服务通过 engine-api 的 TextEngine 调用可替换的 engine-llm 适配器。真实模式使用 llama.cpp 的模型列表、服务属性、槽位状态和结构化聊天补全接口。快照保存模型标识、服务版本、具体上游修订、提示词、输出 schema 和哈希。模型模板显式支持 `enable_thinking` 时，快照记录关闭思考的参数，补全请求沿用该值。单场剧本的 schema 固定为所选规划的该集时长。编辑器与模型结果均经过结构和引用校验。模型返回值只作为文字及结构化数据处理。
+
+应用层通过 `prompts/versions.json` 为大纲、分集规划、剧本、资产提取、拆镜和单镜重做选择 Markdown 模板。配置中的同一版本号用于定位文件及生成任务快照。恢复和重试从原快照读取提示词与 schema。
 
 图片和文字共用 render_tasks、单一调度循环及数据库唯一 GPU 租约。共享真实设备时，调度检查 ComfyUI 队列和 llama.cpp 槽位，在取得文字租约后请求 ComfyUI 释放模型。可配置模型冷加载所需的显存和系统内存。切回图片时，工作台从 `/props` 读取休眠状态。模型醒着且整卡可用显存不足或未知时，图片继续等待，调度器避免用 `/slots` 打断空闲计时。同机部署优先读取 `nvidia-smi`，分机部署可以使用已配置的 ComfyUI WebSocket 上单卡 Crystools 广播，样本五秒后过期。只有编剧和图像并用时才需要这些跨进程的切换检查。
 

@@ -17,6 +17,8 @@
             <option value="$PROJECT_DIR$/backend/engine-api" />
             <option value="$PROJECT_DIR$/backend/engine-comfy" />
             <option value="$PROJECT_DIR$/backend/engine-llm" />
+            <option value="$PROJECT_DIR$/backend/engine-media" />
+            <option value="$PROJECT_DIR$/backend/engine-tts" />
             <option value="$PROJECT_DIR$/backend/infrastructure" />
             <option value="$PROJECT_DIR$/backend/mock-comfy" />
             <option value="$PROJECT_DIR$/backend/scheduler" />
